@@ -783,8 +783,32 @@ export default function App() {
     );
   }
 
-  // If not logged in and not authorized student -> Show Login Modal directly
+  // If not logged in and not authorized student -> check authentication
   const isAuthenticated = currentUser !== null || studentGrant !== null;
+
+  // If requireLoginBeforeAccess is enabled (default: true) and user is not authenticated:
+  // Strictly enforce login before accessing the system!
+  if (!isAuthenticated && systemSettings.requireLoginBeforeAccess !== false) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between font-sans relative overflow-x-hidden">
+        {/* Ambient background glow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-violet-600/10 rounded-full blur-3xl pointer-events-none" />
+
+        <LoginModal
+          isOpen={true}
+          canClose={false}
+          users={users}
+          students={students}
+          accessGrants={accessGrants}
+          onStaffLogin={handleStaffLogin}
+          onLoginStaff={handleStaffLogin}
+          onStudentAuthorizedView={handleStudentAuthorizedView}
+          systemSettings={systemSettings}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex font-sans">

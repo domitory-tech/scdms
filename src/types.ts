@@ -140,6 +140,9 @@ export interface SystemSettings {
   currentAcademicYear: number; // เช่น 2569
   currentTerm: number; // 1 หรือ 2
 
+  // บังคับให้ต้องเข้าสู่ระบบก่อนเข้าใช้งาน
+  requireLoginBeforeAccess?: boolean;
+
   // เกณฑ์คะแนนความประพฤติและเพดานคะแนนสะสม
   criticalScoreThreshold: number; // วิกฤต: เช่น 70 (หักสะสม 70 แต้ม หรือเหลือ 30)
   watchScoreThreshold: number;    // เฝ้าระวัง: เช่น 30 (หักสะสม 30 แต้ม หรือเหลือ 70)

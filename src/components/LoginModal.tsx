@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  Sparkles,
   School,
   GraduationCap,
   Eye,
@@ -23,6 +22,7 @@ import {
 interface LoginModalProps {
   isOpen?: boolean;
   onClose?: () => void;
+  canClose?: boolean;
   systemSettings: SystemSettings;
   users?: AppUser[];
   students?: Student[];
@@ -36,6 +36,7 @@ interface LoginModalProps {
 export const LoginModal: React.FC<LoginModalProps> = ({
   isOpen = true,
   onClose,
+  canClose = true,
   systemSettings,
   users = [],
   students = [],
@@ -149,7 +150,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-200 relative">
-        {onClose && (
+        {canClose && onClose && (
           <button
             type="button"
             onClick={onClose}
@@ -188,6 +189,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 <p className="text-[11px] sm:text-xs text-indigo-200/80 font-medium truncate">
                   {systemSettings.appNameEn}
                 </p>
+              )}
+              {canClose === false && (
+                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-200 text-[11px] font-bold border border-amber-400/30">
+                  <Lock className="w-3 h-3 text-amber-300" />
+                  <span>ต้องเข้าสู่ระบบก่อนจึงสามารถเข้าใช้ระบบได้</span>
+                </div>
               )}
             </div>
           </div>

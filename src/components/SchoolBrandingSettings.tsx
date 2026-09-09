@@ -7,7 +7,8 @@ import {
   CheckCircle2,
   Sparkles,
   Save,
-  Calendar
+  Calendar,
+  Lock
 } from 'lucide-react';
 
 interface SchoolBrandingSettingsProps {
@@ -43,6 +44,9 @@ export const SchoolBrandingSettings: React.FC<SchoolBrandingSettingsProps> = ({
   );
   const [maxBankedPointsCap, setMaxBankedPointsCap] = useState(
     systemSettings.maxBankedPointsCap ?? 50
+  );
+  const [requireLoginBeforeAccess, setRequireLoginBeforeAccess] = useState(
+    systemSettings.requireLoginBeforeAccess !== false
   );
 
   const [savingSettings, setSavingSettings] = useState(false);
@@ -91,7 +95,8 @@ export const SchoolBrandingSettings: React.FC<SchoolBrandingSettingsProps> = ({
         watchScoreThreshold: Number(watchThreshold),
         cautionScoreThreshold: Number(cautionThreshold),
         maxBankedPointsCap: Number(maxBankedPointsCap),
-        warningScoreThreshold: Number(watchThreshold)
+        warningScoreThreshold: Number(watchThreshold),
+        requireLoginBeforeAccess: Boolean(requireLoginBeforeAccess)
       };
 
       const saveFn = onSaveSettings || onUpdateSettings;
@@ -431,6 +436,49 @@ export const SchoolBrandingSettings: React.FC<SchoolBrandingSettingsProps> = ({
                     ≤ {Math.max(0, 100 - criticalThreshold)} แต้ม
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Access Control and Security Setting */}
+          <div className="p-5 bg-indigo-50/70 border border-indigo-200 rounded-2xl space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-slate-900">
+                      การควบคุมการเข้าถึงระบบ (Access Control & Login Policy)
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                      ความปลอดภัย
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed max-w-xl">
+                    <strong>ต้องเข้าสู่ระบบก่อนจึงสามารถเข้าใช้ระบบได้</strong> — เมื่อเปิดใช้งาน ผู้ใช้งานทุกคนต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแลระบบ ครู/เจ้าหน้าที่ หรือตรวจสอบสิทธิ์นักเรียนก่อน จึงจะสามารถเข้าถึงและใช้งานระบบได้
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pl-13 sm:pl-0">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={requireLoginBeforeAccess}
+                    onChange={e => setRequireLoginBeforeAccess(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-2 peer-focus:ring-indigo-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+                <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
+                  {requireLoginBeforeAccess ? (
+                    <span className="text-indigo-700">เปิดใช้งาน (ต้อง Login ก่อน)</span>
+                  ) : (
+                    <span className="text-slate-500">ปิดใช้งาน (เข้าดูสาธารณะได้)</span>
+                  )}
+                </span>
               </div>
             </div>
           </div>

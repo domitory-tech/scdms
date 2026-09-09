@@ -112,6 +112,7 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   logoUrl: '',
   currentAcademicYear: 2569,
   currentTerm: 1,
+  requireLoginBeforeAccess: true,
   criticalScoreThreshold: 70, // วิกฤต: หัก 70 คะแนน หรือเหลือ 30
   watchScoreThreshold: 30,    // เฝ้าระวัง: หัก 30 คะแนน หรือเหลือ 70
   cautionScoreThreshold: 20,  // ตักเตือน: หัก 20 คะแนน หรือเหลือ 80
