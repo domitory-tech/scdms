@@ -90,6 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const getViewTitle = (view: AppView) => {
     switch (view) {
+      case 'HOME': return 'หน้าแรก (พอร์ทัล)';
       case 'DASHBOARD': return 'ภาพรวมคะแนน';
       case 'STUDENT_LIST': return 'จัดการนักเรียน: จัดการรายชื่อนักเรียน';
       case 'LOOKUP': return 'ค้นหานักเรียน';
@@ -111,7 +112,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header id="main-app-header" className="lg:hidden sticky top-0 z-40 bg-white/98 backdrop-blur-md border-b border-slate-200 shadow-xs transition-all">
+      <header id="main-app-header" className={`${isAuthenticated ? 'lg:hidden' : ''} sticky top-0 z-40 bg-white/98 backdrop-blur-md border-b border-slate-200 shadow-xs transition-all`}>
         
         {/* ========================================================================= */}
         {/* ROW 1: PROGRAM TITLE, SCHOOL BRANDING & USER LOGIN PROFILE */}
@@ -125,8 +126,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="header-brand"
                 className="flex items-center gap-2.5 sm:gap-3.5 flex-1 min-w-0 cursor-pointer select-none group"
                 onClick={() => {
-                  if (userRole !== 'student') onChangeView('DASHBOARD');
-                  else onChangeView('LOOKUP');
+                  if (userRole === 'admin' || userRole === 'staff' || userRole === 'teacher') onChangeView('DASHBOARD');
+                  else if (userRole === 'student') onChangeView('LOOKUP');
+                  else onChangeView('HOME');
                 }}
               >
                 {/* Logo visible on mobile/tablet; on desktop also acts as quick reset */}
@@ -221,14 +223,55 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </button>
                     </div>
                   ) : (
-                    <button
-                      id="nav-btn-login"
-                      onClick={onOpenLoginModal}
-                      className="px-3.5 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <LogIn className="w-4 h-4" />
-                      <span>เข้าสู่ระบบ</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onChangeView('HOME')}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                          currentView === 'HOME'
+                            ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        <School className="w-4 h-4 text-indigo-600" />
+                        <span>หน้าแรก</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onChangeView('LOOKUP')}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                          currentView === 'LOOKUP'
+                            ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        <Search className="w-4 h-4 text-slate-500" />
+                        <span>ค้นหาคะแนน</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onChangeView('HONOUR')}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                          currentView === 'HONOUR'
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        <Award className="w-4 h-4 text-amber-500" />
+                        <span>ทำเนียบ 100+</span>
+                      </button>
+
+                      <button
+                        id="nav-btn-login"
+                        onClick={onOpenLoginModal}
+                        className="ml-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <LogIn className="w-4 h-4" />
+                        <span>เข้าสู่ระบบ</span>
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -443,6 +486,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                   เมนูหลัก
                 </p>
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChangeView('HOME');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl text-sm font-bold flex items-center justify-between transition-colors ${
+                    currentView === 'HOME'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <School className="w-4 h-4" />
+                    <span>หน้าแรก (พอร์ทัลโรงเรียน)</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 opacity-70" />
+                </button>
+
                 {userRole !== 'student' && (
                   <button
                     onClick={() => {
@@ -584,116 +646,193 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
 
       {/* 5. Mobile & Tablet Bottom Navigation Bar (Optimized for Mobile and Tablet Touch Devices) */}
-      {isAuthenticated && (
-        <nav
-          id="mobile-bottom-navbar"
-          aria-label="แถบเมนูด้านล่างสำหรับมือถือและแท็ปเล็ต"
-          className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 sm:px-4 py-1.5 sm:py-2 lg:hidden shadow-lg"
-        >
-          <div className="max-w-md sm:max-w-2xl mx-auto flex items-center justify-around w-full">
-            {userRole !== 'student' && (
+      <nav
+        id="mobile-bottom-navbar"
+        aria-label="แถบเมนูด้านล่างสำหรับมือถือและแท็ปเล็ต"
+        className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 sm:px-4 py-1.5 sm:py-2 lg:hidden shadow-lg"
+      >
+        <div className="max-w-md sm:max-w-2xl mx-auto flex items-center justify-around w-full">
+          {isAuthenticated ? (
+            <>
+              {userRole !== 'student' && (
+                <button
+                  id="mobile-nav-dashboard"
+                  onClick={() => {
+                    onChangeView('DASHBOARD');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-2 sm:px-4 rounded-xl transition-all cursor-pointer relative ${
+                    currentView === 'DASHBOARD'
+                      ? 'text-indigo-600 font-bold bg-indigo-50/90'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Users className="w-5 h-5 sm:w-5 sm:h-5" />
+                  <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">ภาพรวม</span>
+                  {currentView === 'DASHBOARD' && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 mt-0.5" />
+                  )}
+                </button>
+              )}
+
               <button
-                id="mobile-nav-dashboard"
+                id="mobile-nav-lookup"
                 onClick={() => {
-                  onChangeView('DASHBOARD');
+                  onChangeView('LOOKUP');
                   setMobileMenuOpen(false);
                 }}
                 className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-2 sm:px-4 rounded-xl transition-all cursor-pointer relative ${
-                  currentView === 'DASHBOARD'
+                  currentView === 'LOOKUP'
                     ? 'text-indigo-600 font-bold bg-indigo-50/90'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <Users className="w-5 h-5 sm:w-5 sm:h-5" />
-                <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">ภาพรวม</span>
-                {currentView === 'DASHBOARD' && (
+                <Search className="w-5 h-5 sm:w-5 sm:h-5" />
+                <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">{userRole === 'student' ? 'คะแนนฉัน' : 'ค้นหา'}</span>
+                {currentView === 'LOOKUP' && (
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 mt-0.5" />
                 )}
               </button>
-            )}
 
-            <button
-              id="mobile-nav-lookup"
-              onClick={() => {
-                onChangeView('LOOKUP');
-                setMobileMenuOpen(false);
-              }}
-              className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-2 sm:px-4 rounded-xl transition-all cursor-pointer relative ${
-                currentView === 'LOOKUP'
-                  ? 'text-indigo-600 font-bold bg-indigo-50/90'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Search className="w-5 h-5 sm:w-5 sm:h-5" />
-              <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">{userRole === 'student' ? 'คะแนนฉัน' : 'ค้นหา'}</span>
-              {currentView === 'LOOKUP' && (
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 mt-0.5" />
+              {userRole !== 'student' && (
+                <button
+                  id="mobile-nav-honour"
+                  onClick={() => {
+                    onChangeView('HONOUR');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-2 sm:px-4 rounded-xl transition-all cursor-pointer relative ${
+                    currentView === 'HONOUR'
+                      ? 'text-violet-700 font-bold bg-violet-50/90'
+                      : 'text-slate-500 hover:text-violet-700'
+                  }`}
+                >
+                  <Award className={`w-5 h-5 sm:w-5 sm:h-5 ${currentView === 'HONOUR' ? 'text-amber-500 fill-amber-400' : 'text-amber-500'}`} />
+                  <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">ทำเนียบ 100+</span>
+                  {currentView === 'HONOUR' && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-violet-600 mt-0.5" />
+                  )}
+                </button>
               )}
-            </button>
 
-            {userRole !== 'student' && (
+              {userRole !== 'student' && (
+                <button
+                  id="mobile-nav-settings"
+                  onClick={() => {
+                    onChangeView('SETTINGS');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-2 sm:px-4 rounded-xl transition-all cursor-pointer relative ${
+                    currentView === 'SETTINGS'
+                      ? 'text-indigo-600 font-bold bg-indigo-50/90'
+                      : 'text-slate-500 hover:text-indigo-600'
+                  }`}
+                >
+                  <Settings className="w-5 h-5 sm:w-5 sm:h-5" />
+                  <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">ตั้งค่า</span>
+                  {currentView === 'SETTINGS' && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 mt-0.5" />
+                  )}
+                </button>
+              )}
+
               <button
-                id="mobile-nav-honour"
+                id="mobile-nav-menu"
+                onClick={() => {
+                  if (onToggleMobileSidebar) {
+                    onToggleMobileSidebar();
+                  } else {
+                    setMobileMenuOpen(!mobileMenuOpen);
+                  }
+                }}
+                className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-2 sm:px-4 rounded-xl transition-all cursor-pointer relative ${
+                  isMobileSidebarOpen || mobileMenuOpen
+                    ? 'text-indigo-600 font-bold bg-indigo-50/90'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                {isMobileSidebarOpen || mobileMenuOpen ? <X className="w-5 h-5 sm:w-5 sm:h-5 text-rose-600" /> : <Menu className="w-5 h-5 sm:w-5 sm:h-5" />}
+                <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">{isMobileSidebarOpen || mobileMenuOpen ? 'ปิดเมนู' : 'เมนู'}</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                id="mobile-guest-home"
+                onClick={() => {
+                  onChangeView('HOME');
+                  setMobileMenuOpen(false);
+                }}
+                className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-3 rounded-xl transition-all cursor-pointer relative ${
+                  currentView === 'HOME'
+                    ? 'text-indigo-600 font-bold bg-indigo-50/90'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <School className="w-5 h-5 sm:w-5 sm:h-5" />
+                <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">หน้าแรก</span>
+                {currentView === 'HOME' && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 mt-0.5" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                id="mobile-guest-lookup"
+                onClick={() => {
+                  onChangeView('LOOKUP');
+                  setMobileMenuOpen(false);
+                }}
+                className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-3 rounded-xl transition-all cursor-pointer relative ${
+                  currentView === 'LOOKUP'
+                    ? 'text-indigo-600 font-bold bg-indigo-50/90'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Search className="w-5 h-5 sm:w-5 sm:h-5" />
+                <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">ค้นหา</span>
+                {currentView === 'LOOKUP' && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 mt-0.5" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                id="mobile-guest-honour"
                 onClick={() => {
                   onChangeView('HONOUR');
                   setMobileMenuOpen(false);
                 }}
-                className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-2 sm:px-4 rounded-xl transition-all cursor-pointer relative ${
+                className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-3 rounded-xl transition-all cursor-pointer relative ${
                   currentView === 'HONOUR'
                     ? 'text-violet-700 font-bold bg-violet-50/90'
                     : 'text-slate-500 hover:text-violet-700'
                 }`}
               >
-                <Award className={`w-5 h-5 sm:w-5 sm:h-5 ${currentView === 'HONOUR' ? 'text-amber-500 fill-amber-400' : 'text-amber-500'}`} />
-                <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">ทำเนียบ 100+</span>
+                <Award className="w-5 h-5 sm:w-5 sm:h-5 text-amber-500" />
+                <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">ทำเนียบ</span>
                 {currentView === 'HONOUR' && (
                   <span className="w-1.5 h-1.5 rounded-full bg-violet-600 mt-0.5" />
                 )}
               </button>
-            )}
 
-            {userRole !== 'student' && (
               <button
-                id="mobile-nav-settings"
+                type="button"
+                id="mobile-guest-login"
                 onClick={() => {
-                  onChangeView('SETTINGS');
                   setMobileMenuOpen(false);
+                  if (onOpenLoginModal) onOpenLoginModal();
                 }}
-                className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-2 sm:px-4 rounded-xl transition-all cursor-pointer relative ${
-                  currentView === 'SETTINGS'
-                    ? 'text-indigo-600 font-bold bg-indigo-50/90'
-                    : 'text-slate-500 hover:text-indigo-600'
-                }`}
+                className="flex flex-col items-center justify-center py-1 sm:py-1.5 px-3 rounded-xl transition-all cursor-pointer relative text-indigo-600 hover:text-indigo-800 font-medium"
               >
-                <Settings className="w-5 h-5 sm:w-5 sm:h-5" />
-                <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">ตั้งค่า</span>
-                {currentView === 'SETTINGS' && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 mt-0.5" />
-                )}
+                <LogIn className="w-5 h-5 sm:w-5 sm:h-5" />
+                <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">เข้าสู่ระบบ</span>
               </button>
-            )}
-
-            <button
-              id="mobile-nav-menu"
-              onClick={() => {
-                if (onToggleMobileSidebar) {
-                  onToggleMobileSidebar();
-                } else {
-                  setMobileMenuOpen(!mobileMenuOpen);
-                }
-              }}
-              className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-2 sm:px-4 rounded-xl transition-all cursor-pointer relative ${
-                isMobileSidebarOpen || mobileMenuOpen
-                  ? 'text-indigo-600 font-bold bg-indigo-50/90'
-                  : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              {isMobileSidebarOpen || mobileMenuOpen ? <X className="w-5 h-5 sm:w-5 sm:h-5 text-rose-600" /> : <Menu className="w-5 h-5 sm:w-5 sm:h-5" />}
-              <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">{isMobileSidebarOpen || mobileMenuOpen ? 'ปิดเมนู' : 'เมนู'}</span>
-            </button>
-          </div>
-        </nav>
-      )}
+            </>
+          )}
+        </div>
+      </nav>
     </>
   );
 };

@@ -45,10 +45,21 @@
 
 ## ⚙️ การตั้งค่า CI/CD อัตโนมัติ (GitHub Actions)
 
-โปรเจกต์นี้มาพร้อมกับไฟล์ Workflow อยู่ที่ `.github/workflows/deploy.yml`:
-- ตรวจสอบความถูกต้องของโค้ด (`npm run lint` / TypeScript check)
-- ทำการ Build ไฟล์ Production (`npm run build`)
-- เก็บ Artifact `dist/` อัตโนมัติเมื่อมีการ Push ไปยัง branch `main`
+โปรเจกต์นี้มาพร้อมกับ GitHub Workflows 2 ตัวในโฟลเดอร์ `.github/workflows/`:
+1. **`ci.yml` (Continuous Integration):**
+   - รันอัตโนมัติเมื่อมีการ Push หรือ Pull Request ไปยัง branch `main`
+   - ตรวจสอบ Type check (`npm run lint`), ติดตั้ง dependencies, และทดสอบ Build (`npm run build`)
+2. **`deploy.yml` (GitHub Pages Deployment):**
+   - รันอัตโนมัติเมื่อ Push ไปยัง branch `main`
+   - ทำการ Build และ Deploy ขึ้น **GitHub Pages** อัตโนมัติ (เปิดใช้งานผ่าน Settings > Pages ใน GitHub Repo โดยเลือก Source เป็น GitHub Actions)
+
+---
+
+## 🌟 หน้าแรกของระบบ (School Conduct Portal Landing Page)
+
+- **พอร์ทัลหน้าแรก (Home Landing View):** หน้าต้อนรับสำหรับนักเรียน ผู้ปกครอง และครู แสดงสรุปสถิติประจำภาคเรียน, ทำเนียบคนดี, เกณฑ์การตัด/เพิ่มคะแนนความประพฤติ
+- **ค้นหาผลคะแนนความประพฤติออนไลน์:** ค้นหาได้ด้วยรหัสนักเรียนหรือเลขประจำตัวประชาชน
+- **ระบบความปลอดภัย:** แยกสิทธิ์ระหว่างมุมมองสาธารณะ (ตรวจสอบคะแนน) และระบบจัดการหลังบ้าน (ฝ่ายปกครอง / ครูผู้สอน) ที่ต้องยืนยันตัวตน
 
 ---
 

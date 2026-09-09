@@ -130,6 +130,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* 2. NAVIGATION MENU LIST */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5 text-sm" aria-label="เมนูหลักด้านซ้าย">
+        {/* Item 0: หน้าแรก (Home Portal) */}
+        <button
+          type="button"
+          onClick={() => handleNav('HOME')}
+          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition-all cursor-pointer text-left ${
+            currentView === 'HOME'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <School className="w-4 h-4 shrink-0" />
+            <span>หน้าแรก</span>
+          </div>
+          <span
+            className={`text-[10px] font-medium px-2 py-0.5 rounded-md ${
+              currentView === 'HOME' ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-500'
+            }`}
+          >
+            พอร์ทัล
+          </span>
+        </button>
+
         {/* Item 1: ภาพรวมคะแนน */}
         {userRole !== 'student' && (
           <button

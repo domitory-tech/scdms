@@ -67,6 +67,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { INITIAL_SAMPLE_STUDENTS, INITIAL_SAMPLE_LOGS, INITIAL_SAMPLE_ADVISORS } from './data/mockSampleData';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
+import { HomeLandingView } from './components/HomeLandingView';
 import { Dashboard } from './components/Dashboard';
 import { StudentLookup } from './components/StudentLookup';
 import { AdvisorManagementView } from './components/AdvisorManagementView';
@@ -117,7 +118,17 @@ export default function App() {
   });
 
   // App Navigation state
-  const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
+  const [currentView, setCurrentView] = useState<AppView>(() => {
+    try {
+      const savedUser = localStorage.getItem('conduct_auth_user');
+      if (savedUser) return 'DASHBOARD';
+      const savedGrant = sessionStorage.getItem('conduct_student_grant');
+      if (savedGrant) return 'LOOKUP';
+      return 'HOME';
+    } catch {
+      return 'HOME';
+    }
+  });
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
 
@@ -326,6 +337,7 @@ export default function App() {
     localStorage.setItem('conduct_auth_user', JSON.stringify(user));
     sessionStorage.removeItem('conduct_student_grant');
     setCurrentView('DASHBOARD');
+    setShowLoginModal(false);
   };
 
   const handleStudentAuthorizedView = (student: Student, grant: StudentAccessGrant) => {
@@ -335,6 +347,7 @@ export default function App() {
     localStorage.removeItem('conduct_auth_user');
     setSelectedStudentId(student?.id || grant.studentId);
     setCurrentView('LOOKUP');
+    setShowLoginModal(false);
   };
 
   const handleLogout = () => {
@@ -342,6 +355,7 @@ export default function App() {
     setStudentGrant(null);
     localStorage.removeItem('conduct_auth_user');
     sessionStorage.removeItem('conduct_student_grant');
+    setCurrentView('HOME');
   };
 
   // Conduct Action Handler
@@ -811,7 +825,97 @@ export default function App() {
 
         {/* Main Content Area: Full width display on right side */}
         <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-5 sm:py-6 pb-28 lg:pb-10 min-w-0">
-          {!isAuthenticated ? (
+          {currentView === 'HOME' ? (
+            <HomeLandingView
+              students={students}
+              conductLogs={conductLogs}
+              systemSettings={systemSettings}
+              advisors={advisors}
+              standardBehaviors={standardBehaviors}
+              users={users}
+              currentUser={currentUser}
+              onNavigate={(v) => handleChangeView(v)}
+              onSelectStudent={handleSelectStudent}
+              onOpenLogin={() => setShowLoginModal(true)}
+              onDemoLogin={(user) => {
+                const adminUser = user || users.find(u => u.username === 'admin') || {
+                  id: 'usr-admin-01',
+                  username: 'admin',
+                  name: 'ผู้ดูแลระบบสูงสุด',
+                  role: 'admin',
+                  isActive: true,
+                  createdAt: new Date().toISOString()
+                };
+                handleStaffLogin(adminUser);
+              }}
+            />
+          ) : currentView === 'HONOUR' ? (
+            <HonourRollModal
+              isPage={true}
+              students={students}
+              currentAcademicYear={systemSettings.currentAcademicYear}
+              systemSettings={systemSettings}
+              onClose={() => setCurrentView(currentUser?.role !== 'student' ? 'DASHBOARD' : 'LOOKUP')}
+              onSelectStudent={handleSelectStudent}
+            />
+          ) : currentView === 'LOOKUP' ? (
+            <StudentLookup
+              students={students}
+              conductLogs={conductLogs}
+              currentAcademicYear={systemSettings.currentAcademicYear}
+              currentTerm={systemSettings.currentTerm}
+              currentUser={currentUser}
+              studentGrant={studentGrant}
+              systemSettings={systemSettings}
+              advisors={advisors}
+              initialStudentId={studentGrant ? studentGrant.studentId : selectedStudentId}
+              onOpenConductAction={(student, defaultType) => {
+                if (!currentUser) {
+                  setShowLoginModal(true);
+                  return;
+                }
+                setConductActionTarget({ student, defaultType });
+              }}
+              onOpenGrantModal={(student) => {
+                if (!currentUser) {
+                  setShowLoginModal(true);
+                  return;
+                }
+                setGrantTargetStudent(student);
+              }}
+              onUpdateStudentPhoto={async (id, photoUrl) => {
+                if (!currentUser) {
+                  setShowLoginModal(true);
+                  return;
+                }
+                handleBatchUpdateStudentPhotos([{ id, photoUrl }]);
+              }}
+              onOpenAddStudent={() => {
+                if (!currentUser) {
+                  setShowLoginModal(true);
+                  return;
+                }
+                setShowAddStudentModal(true);
+              }}
+              onOpenEditStudent={(st) => {
+                if (!currentUser) {
+                  setShowLoginModal(true);
+                  return;
+                }
+                setEditingStudent(st);
+              }}
+              onDeleteStudent={handleDeleteStudent}
+              onEditConductLog={handleEditConductLog}
+              onDeleteConductLog={handleDeleteConductLog}
+              onOpenPhotoManager={() => {
+                if (!currentUser) {
+                  setShowLoginModal(true);
+                  return;
+                }
+                setCurrentView('PHOTOS');
+              }}
+            />
+          ) : !isAuthenticated ? (
             <div className="py-12 px-4 max-w-lg mx-auto text-center space-y-5 bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs">
               <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto border border-indigo-100 shadow-xs">
                 <ShieldAlert className="w-8 h-8" />
@@ -827,6 +931,7 @@ export default function App() {
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button
+                  type="button"
                   onClick={() => {
                     const adminUser = users.find(u => u.username === 'admin') || {
                       id: 'usr-admin-01',
@@ -843,22 +948,21 @@ export default function App() {
                   <span>เข้าสู่ระบบทันที (Admin Demo)</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => setShowLoginModal(true)}
                   className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors cursor-pointer text-sm"
                 >
                   กรอกรหัสผ่านด้วยตนเอง
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentView('HOME')}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-white hover:bg-slate-50 text-indigo-600 border border-indigo-200 font-bold rounded-xl transition-colors cursor-pointer text-sm"
+                >
+                  กลับสู่หน้าแรก
+                </button>
               </div>
             </div>
-          ) : currentView === 'HONOUR' ? (
-            <HonourRollModal
-              isPage={true}
-              students={students}
-              currentAcademicYear={systemSettings.currentAcademicYear}
-              systemSettings={systemSettings}
-              onClose={() => setCurrentView(currentUser?.role !== 'student' ? 'DASHBOARD' : 'LOOKUP')}
-              onSelectStudent={handleSelectStudent}
-            />
           ) : currentView === 'CRITICAL_ALERT' && currentUser ? (
             <CriticalAlertView
               students={students}
@@ -989,29 +1093,28 @@ export default function App() {
               onOpenEditStudent={(st) => setEditingStudent(st)}
             />
           ) : (
-            <StudentLookup
+            <HomeLandingView
               students={students}
               conductLogs={conductLogs}
-              currentAcademicYear={systemSettings.currentAcademicYear}
-              currentTerm={systemSettings.currentTerm}
-              currentUser={currentUser}
-              studentGrant={studentGrant}
               systemSettings={systemSettings}
               advisors={advisors}
-              initialStudentId={studentGrant ? studentGrant.studentId : selectedStudentId}
-              onOpenConductAction={(student, defaultType) =>
-                setConductActionTarget({ student, defaultType })
-              }
-              onOpenGrantModal={(student) => setGrantTargetStudent(student)}
-              onUpdateStudentPhoto={async (id, photoUrl) =>
-                handleBatchUpdateStudentPhotos([{ id, photoUrl }])
-              }
-              onOpenAddStudent={() => setShowAddStudentModal(true)}
-              onOpenEditStudent={(st) => setEditingStudent(st)}
-              onDeleteStudent={handleDeleteStudent}
-              onEditConductLog={handleEditConductLog}
-              onDeleteConductLog={handleDeleteConductLog}
-              onOpenPhotoManager={() => setCurrentView('PHOTOS')}
+              standardBehaviors={standardBehaviors}
+              users={users}
+              currentUser={currentUser}
+              onNavigate={(v) => handleChangeView(v)}
+              onSelectStudent={handleSelectStudent}
+              onOpenLogin={() => setShowLoginModal(true)}
+              onDemoLogin={(user) => {
+                const adminUser = user || users.find(u => u.username === 'admin') || {
+                  id: 'usr-admin-01',
+                  username: 'admin',
+                  name: 'ผู้ดูแลระบบสูงสุด',
+                  role: 'admin',
+                  isActive: true,
+                  createdAt: new Date().toISOString()
+                };
+                handleStaffLogin(adminUser);
+              }}
             />
           )}
         </main>
@@ -1033,12 +1136,10 @@ export default function App() {
 
       {/* ACTION DIALOGS & POPUPS */}
       {/* 1. Login Modal */}
-      {(!isAuthenticated || showLoginModal) && (
+      {showLoginModal && (
         <LoginModal
-          isOpen={!isAuthenticated || showLoginModal}
-          onClose={() => {
-            if (isAuthenticated) setShowLoginModal(false);
-          }}
+          isOpen={showLoginModal}
+          onClose={() => setShowLoginModal(false)}
           users={users}
           students={students}
           accessGrants={accessGrants}

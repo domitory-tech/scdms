@@ -37,6 +37,7 @@ export type GradeLevel = 'ม.1' | 'ม.2' | 'ม.3' | 'ม.4' | 'ม.5' | 'ม.
 export type EntryLevel = 'ม.1' | 'ม.4';
 
 export type AppView =
+  | 'HOME'
   | 'DASHBOARD'
   | 'LOOKUP'
   | 'ADVISORS'
