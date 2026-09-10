@@ -191,7 +191,7 @@ export const CriticalAlertView: React.FC<CriticalAlertViewProps> = ({
     XLSX.writeFile(workbook, `รายงานนักเรียนกลุ่มเสี่ยงและถูกหักคะแนน_ปี${currentAcademicYear}.xlsx`);
   };
 
-  const isStaffOrAdmin = currentUser?.role === 'admin' || currentUser?.role === 'staff';
+  const isStaffOrAdmin = currentUser?.role === 'admin' || currentUser?.role === 'staff' || currentUser?.role === 'teacher';
 
   return (
     <div className="space-y-6 w-full pb-12">

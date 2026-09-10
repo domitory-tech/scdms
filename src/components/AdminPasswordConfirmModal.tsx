@@ -51,11 +51,11 @@ export const AdminPasswordConfirmModal: React.FC<AdminPasswordConfirmModalProps>
     setErrorMsg(null);
 
     if (!password.trim()) {
-      setErrorMsg('กรุณากรอกรหัสผ่านผู้ดูแลระบบ (Admin Password)');
+      setErrorMsg('กรุณากรอกรหัสผ่านเพื่อยืนยัน');
       return;
     }
 
-    // Collect valid admin passwords
+    // Collect valid passwords
     const validPasswords = new Set<string>();
     
     // 1. Default admin password
@@ -63,20 +63,36 @@ export const AdminPasswordConfirmModal: React.FC<AdminPasswordConfirmModalProps>
       validPasswords.add(DEFAULT_ADMIN_USER.password);
     }
 
-    // 2. Current user's password if admin
-    if (currentUser && currentUser.role === 'admin' && currentUser.password) {
+    // 2. Current user's password (regardless of role - staff/teacher/admin who has menu access)
+    if (currentUser && currentUser.password) {
       validPasswords.add(currentUser.password);
     }
 
-    // 3. Any admin user in users collection
+    // 3. Matched user from users collection
+    if (currentUser && users.length > 0) {
+      const match = users.find(u => u.id === currentUser.id || u.username?.toLowerCase() === currentUser.username?.toLowerCase());
+      if (match && match.password) {
+        validPasswords.add(match.password);
+      }
+    }
+
+    // 4. Any admin user in users collection
     users
       .filter(u => u.role === 'admin' && u.password)
       .forEach(u => validPasswords.add(u.password!));
 
+    // 5. Check local admin pass if stored
+    try {
+      const localAdminPass = localStorage.getItem('pcccr_admin_pass');
+      if (localAdminPass) validPasswords.add(localAdminPass);
+    } catch {
+      // Ignore storage errors
+    }
+
     const isMatch = validPasswords.has(password.trim());
 
     if (!isMatch) {
-      setErrorMsg('รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง');
+      setErrorMsg('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง');
       return;
     }
 
@@ -114,7 +130,9 @@ export const AdminPasswordConfirmModal: React.FC<AdminPasswordConfirmModalProps>
             <div>
               <h3 className="font-bold text-base sm:text-lg leading-tight">{title}</h3>
               <p className="text-xs text-white/90 mt-0.5 font-medium">
-                ระบบความปลอดภัย: ต้องใช้รหัสผ่านผู้ดูแลระบบเพื่อยืนยัน
+                {currentUser 
+                  ? `ระบบความปลอดภัย: ยืนยันโดย ${currentUser.name} (${currentUser.role === 'admin' ? 'ผู้ดูแลระบบ' : currentUser.role === 'staff' ? 'เจ้าหน้าที่' : 'ครู'})`
+                  : 'ระบบความปลอดภัย: ต้องใช้รหัสผ่านยืนยันการดำเนินการ'}
               </p>
             </div>
           </div>
@@ -151,7 +169,11 @@ export const AdminPasswordConfirmModal: React.FC<AdminPasswordConfirmModalProps>
           <div className="space-y-1.5 pt-1">
             <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
               <KeyRound className="w-3.5 h-3.5 text-indigo-600" />
-              <span>กรอกรหัสผ่านผู้ดูแลระบบ (Admin Password)</span>
+              <span>
+                {currentUser 
+                  ? `กรอกรหัสผ่านของคุณ (${currentUser.name}) หรือรหัสผ่านผู้ดูแลระบบ` 
+                  : 'กรอกรหัสผ่านเพื่อยืนยัน'}
+              </span>
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -165,7 +187,7 @@ export const AdminPasswordConfirmModal: React.FC<AdminPasswordConfirmModalProps>
                   setPassword(e.target.value);
                   if (errorMsg) setErrorMsg(null);
                 }}
-                placeholder="กรอกรหัสผ่าน Admin เพื่อยืนยัน"
+                placeholder={currentUser ? `กรอกรหัสผ่านของคุณ (@${currentUser.username})` : 'กรอกรหัสผ่านเพื่อยืนยัน'}
                 className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-rose-500 focus:border-rose-500 focus:outline-hidden"
               />
               <button
@@ -178,7 +200,9 @@ export const AdminPasswordConfirmModal: React.FC<AdminPasswordConfirmModalProps>
               </button>
             </div>
             <p className="text-[11px] text-slate-400">
-              * ต้องเป็นรหัสผ่านของผู้ดูแลระบบ (Admin) เท่านั้น
+              {currentUser 
+                ? `* สามารถใช้รหัสผ่านของบัญชีคุณ (@${currentUser.username}) หรือรหัสผ่านผู้ดูแลระบบ (Admin) เพื่อยืนยันความถูกต้อง`
+                : '* ต้องใช้รหัสผ่านเพื่อยืนยันการดำเนินการ'}
             </p>
           </div>
 

@@ -93,13 +93,42 @@ export const DEFAULT_ADMIN_USER: AppUser = {
   id: 'admin',
   username: 'admin',
   password: '213894120',
-  name: 'ผู้ดูแลระบบสูงสุด (Administrator)',
+  name: 'ผู้ดูแลระบบสูงสุด (Super Admin)',
   role: 'admin',
   department: 'ศูนย์เทคโนโลยีและงานกิจการนักเรียน',
   email: 'admin@school.ac.th',
   isActive: true,
+  isSuperAdmin: true,
   createdAt: '2026-01-01T00:00:00.000Z'
 };
+
+export const DEFAULT_INITIAL_USERS: AppUser[] = [
+  DEFAULT_ADMIN_USER,
+  {
+    id: 'staff01',
+    username: 'staff01',
+    password: 'staff1234',
+    name: 'เจ้าหน้าที่สมศักดิ์ วินัยดี',
+    role: 'staff',
+    department: 'ฝ่ายกิจการนักเรียนและระเบียบวินัย',
+    email: 'staff01@school.ac.th',
+    isActive: true,
+    isSuperAdmin: false,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'teacher01',
+    username: 'teacher01',
+    password: 'teacher1234',
+    name: 'ครูสมพร สอนดี',
+    role: 'teacher',
+    department: 'กลุ่มสาระการเรียนรู้ภาษาไทย',
+    email: 'somporn@school.ac.th',
+    isActive: true,
+    isSuperAdmin: false,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  }
+];
 
 /**
  * Default initial system settings
@@ -122,15 +151,18 @@ export const DEFAULT_SETTINGS: SystemSettings = {
 };
 
 /**
- * Initialize default admin user if no users exist
+ * Initialize default admin user and initial tier accounts if needed
  */
 export async function initDefaultAdminUser(): Promise<AppUser[]> {
   try {
     const snap = await getDocs(collection(db, USERS_COLLECTION));
     if (snap.empty) {
-      const adminDoc = doc(db, USERS_COLLECTION, DEFAULT_ADMIN_USER.id);
-      await setDoc(adminDoc, DEFAULT_ADMIN_USER);
-      return [DEFAULT_ADMIN_USER];
+      const batch = writeBatch(db);
+      for (const u of DEFAULT_INITIAL_USERS) {
+        batch.set(doc(db, USERS_COLLECTION, u.id), u);
+      }
+      await batch.commit();
+      return [...DEFAULT_INITIAL_USERS];
     }
     const users: AppUser[] = [];
     snap.forEach(d => users.push(d.data() as AppUser));
@@ -143,7 +175,7 @@ export async function initDefaultAdminUser(): Promise<AppUser[]> {
     return users;
   } catch (err) {
     console.warn('initDefaultAdminUser error:', err);
-    return [DEFAULT_ADMIN_USER];
+    return [...DEFAULT_INITIAL_USERS];
   }
 }
 

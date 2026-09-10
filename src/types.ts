@@ -10,6 +10,7 @@ export interface AppUser {
   email?: string;
   phone?: string;
   isActive: boolean;
+  isSuperAdmin?: boolean; // สิทธิ์ผู้ดูแลหลัก (Super Admin)
   createdAt: string;
   lastLoginAt?: string;
 }
@@ -52,7 +53,8 @@ export type AppView =
   | 'SETTINGS_BEHAVIORS'
   | 'SETTINGS_USERS'
   | 'SETTINGS_DATABASE'
-  | 'SETTINGS_GRANTS';
+  | 'SETTINGS_GRANTS'
+  | 'SETTINGS_MENU_PERMISSIONS';
 
 export type ConductType = 'DEDUCT' | 'ADD'; // หักคะแนน หรือ เพิ่มคะแนน
 
@@ -131,6 +133,14 @@ export interface Student {
   updatedAt: string;
 }
 
+export interface MenuAccessRule {
+  allowedRoles: ('admin' | 'staff' | 'teacher' | 'student')[];
+  allowGuest?: boolean;
+  enabled: boolean;
+}
+
+export type MenuPermissionsMap = Record<string, MenuAccessRule>;
+
 export interface SystemSettings {
   schoolNameTh: string;
   schoolNameEn: string;
@@ -142,6 +152,9 @@ export interface SystemSettings {
 
   // บังคับให้ต้องเข้าสู่ระบบก่อนเข้าใช้งาน
   requireLoginBeforeAccess?: boolean;
+
+  // สิทธิ์การเข้าถึงเมนูต่าง ๆ ในระบบ (ควบคุมโดยผู้ดูแลหลัก)
+  menuPermissions?: MenuPermissionsMap;
 
   // เกณฑ์คะแนนความประพฤติและเพดานคะแนนสะสม
   criticalScoreThreshold: number; // วิกฤต: เช่น 70 (หักสะสม 70 แต้ม หรือเหลือ 30)

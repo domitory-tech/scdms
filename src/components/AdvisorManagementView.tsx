@@ -74,7 +74,7 @@ export const AdvisorManagementView: React.FC<AdvisorManagementViewProps> = ({
   onSelectStudent
 }) => {
   const currentAcademicYear = systemSettings.currentAcademicYear || 2569;
-  const isPrivileged = currentUser?.role === 'admin' || currentUser?.role === 'staff';
+  const isPrivileged = currentUser?.role === 'admin' || currentUser?.role === 'staff' || currentUser?.role === 'teacher';
 
   // Filters & Views
   const [selectedGradeFilter, setSelectedGradeFilter] = useState<'ALL' | 'JUNIOR' | 'SENIOR' | GradeLevel>('ALL');

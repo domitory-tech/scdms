@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserRole, SystemSettings, AppUser, StudentAccessGrant, AppView } from '../types';
+import { canUserAccessMenu, isSuperAdmin } from '../utils/menuPermissions';
 import {
   ShieldCheck,
   Award,
@@ -24,7 +25,8 @@ import {
   Shield,
   HelpCircle,
   LogIn,
-  Camera
+  Camera,
+  Key
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -43,6 +45,7 @@ interface NavbarProps {
   onOpenLoginModal?: () => void;
   onToggleMobileSidebar?: () => void;
   isMobileSidebarOpen?: boolean;
+  onOpenChangePassword?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -60,7 +63,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   onOpenLoginModal,
   onToggleMobileSidebar,
-  isMobileSidebarOpen
+  isMobileSidebarOpen,
+  onOpenChangePassword
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
@@ -105,10 +109,14 @@ export const Navbar: React.FC<NavbarProps> = ({
       case 'SETTINGS_USERS': return 'ตั้งค่าระบบ: จัดการผู้ใช้งานระบบ';
       case 'SETTINGS_DATABASE': return 'ตั้งค่าระบบ: ฐานข้อมูล & สำรอง';
       case 'SETTINGS_GRANTS': return 'ตั้งค่าระบบ: ประวัติสิทธิ์นักเรียน';
+      case 'SETTINGS_MENU_PERMISSIONS': return 'ตั้งค่าระบบ: จัดการสิทธิ์เข้าถึงเมนู';
       case 'CRITICAL_ALERT': return 'แจ้งเตือน: นักเรียนกลุ่มวิกฤต (≤ 50 คะแนน)';
       default: return 'ระบบคะแนนความประพฤติ';
     }
   };
+
+  const canAccess = (view: AppView) =>
+    canUserAccessMenu(view, currentUser, studentGrant, systemSettings?.menuPermissions);
 
   return (
     <>
@@ -189,7 +197,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 {currentUser.name}
                               </span>
                               <span className="text-[10px] text-slate-500 leading-tight font-medium">
-                                {currentUser.role === 'admin'
+                                {isSuperAdmin(currentUser)
+                                  ? '👑 ผู้ดูแลหลัก'
+                                  : currentUser.role === 'admin'
                                   ? 'ผู้ดูแลระบบ (Admin)'
                                   : currentUser.role === 'staff'
                                   ? 'ฝ่ายปกครอง (Staff)'
@@ -211,6 +221,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                           </>
                         )}
                       </div>
+
+                      {currentUser && onOpenChangePassword && (
+                        <button
+                          type="button"
+                          onClick={onOpenChangePassword}
+                          title="เปลี่ยนรหัสผ่านของฉัน"
+                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors cursor-pointer shadow-2xs"
+                          aria-label="เปลี่ยนรหัสผ่านของฉัน"
+                        >
+                          <Key className="w-4 h-4" />
+                        </button>
+                      )}
 
                       <button
                         id="nav-btn-logout"
@@ -486,26 +508,28 @@ export const Navbar: React.FC<NavbarProps> = ({
                   เมนูหลัก
                 </p>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChangeView('HOME');
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-sm font-bold flex items-center justify-between transition-colors ${
-                    currentView === 'HOME'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <School className="w-4 h-4" />
-                    <span>หน้าแรก (พอร์ทัลโรงเรียน)</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 opacity-70" />
-                </button>
+                {canAccess('HOME') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChangeView('HOME');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl text-sm font-bold flex items-center justify-between transition-colors ${
+                      currentView === 'HOME'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <School className="w-4 h-4" />
+                      <span>หน้าแรก (พอร์ทัลโรงเรียน)</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 opacity-70" />
+                  </button>
+                )}
 
-                {userRole !== 'student' && (
+                {canAccess('DASHBOARD') && (
                   <button
                     onClick={() => {
                       onChangeView('DASHBOARD');
@@ -525,25 +549,27 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 )}
 
-                <button
-                  onClick={() => {
-                    onChangeView('LOOKUP');
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-sm font-bold flex items-center justify-between transition-colors ${
-                    currentView === 'LOOKUP'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Search className="w-4 h-4" />
-                    <span>{userRole === 'student' ? 'ผลคะแนนความประพฤติของฉัน' : 'ค้นหารหัสและตรวจสอบนักเรียน'}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 opacity-70" />
-                </button>
+                {canAccess('LOOKUP') && (
+                  <button
+                    onClick={() => {
+                      onChangeView('LOOKUP');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl text-sm font-bold flex items-center justify-between transition-colors ${
+                      currentView === 'LOOKUP'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Search className="w-4 h-4" />
+                      <span>{userRole === 'student' ? 'ผลคะแนนความประพฤติของฉัน' : 'ค้นหารหัสและตรวจสอบนักเรียน'}</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 opacity-70" />
+                  </button>
+                )}
 
-                {userRole !== 'student' && (
+                {canAccess('ADVISORS') && (
                   <button
                     onClick={() => {
                       onChangeView('ADVISORS');
@@ -565,54 +591,84 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
 
               {/* Quick Tools (Staff / Teacher / Admin) */}
-              {isAuthenticated && userRole !== 'student' && (
+              {isAuthenticated && (
                 <div className="space-y-1 pt-2 border-t border-slate-100">
                   <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-2 mb-1">
-                    เครื่องมือฝ่ายปกครอง
+                    เครื่องมือฝ่ายปกครอง & ตั้งค่า
                   </p>
 
-                  <button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onChangeView('HONOUR');
-                    }}
-                    className={`w-full px-3.5 py-2.5 rounded-xl text-sm font-medium flex items-center justify-between transition-colors text-left ${
-                      currentView === 'HONOUR'
-                        ? 'bg-violet-700 text-white font-bold'
-                        : 'text-slate-700 hover:bg-violet-50 hover:text-violet-900'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Award className={`w-4 h-4 ${currentView === 'HONOUR' ? 'text-amber-300' : 'text-amber-500'}`} />
-                      <span>ทำเนียบคะแนนดีเด่น (100+ ไม่เคยโดนหัก)</span>
-                    </div>
-                    <span className="text-xs bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-md">
-                      100+
-                    </span>
-                  </button>
+                  {canAccess('HONOUR') && (
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        onChangeView('HONOUR');
+                      }}
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-sm font-medium flex items-center justify-between transition-colors text-left ${
+                        currentView === 'HONOUR'
+                          ? 'bg-violet-700 text-white font-bold'
+                          : 'text-slate-700 hover:bg-violet-50 hover:text-violet-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Award className={`w-4 h-4 ${currentView === 'HONOUR' ? 'text-amber-300' : 'text-amber-500'}`} />
+                        <span>ทำเนียบคะแนนดีเด่น (100+ ไม่เคยโดนหัก)</span>
+                      </div>
+                      <span className="text-xs bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-md">
+                        100+
+                      </span>
+                    </button>
+                  )}
 
-                  <button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onChangeView('SETTINGS');
-                    }}
-                    className={`w-full px-3.5 py-2.5 rounded-xl text-sm font-medium flex items-center justify-between transition-colors text-left ${
-                      currentView === 'SETTINGS'
-                        ? 'bg-indigo-600 text-white font-bold'
-                        : 'text-slate-700 hover:bg-indigo-50 hover:text-indigo-900'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Settings className="w-4 h-4" />
-                      <span>ตั้งค่าระบบและจัดการข้อมูล</span>
-                    </div>
-                    <ChevronRight className="w-4 h-4 opacity-70" />
-                  </button>
+                  {(canAccess('SETTINGS_BRANDING') ||
+                    canAccess('SETTINGS_BEHAVIORS') ||
+                    canAccess('SETTINGS_USERS') ||
+                    canAccess('SETTINGS_DATABASE') ||
+                    canAccess('SETTINGS_GRANTS')) && (
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        onChangeView('SETTINGS');
+                      }}
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-sm font-medium flex items-center justify-between transition-colors text-left ${
+                        currentView.startsWith('SETTINGS') && currentView !== 'SETTINGS_MENU_PERMISSIONS'
+                          ? 'bg-indigo-600 text-white font-bold'
+                          : 'text-slate-700 hover:bg-indigo-50 hover:text-indigo-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Settings className="w-4 h-4" />
+                        <span>ตั้งค่าระบบและจัดการข้อมูล</span>
+                      </div>
+                      <ChevronRight className="w-4 h-4 opacity-70" />
+                    </button>
+                  )}
+
+                  {canAccess('SETTINGS_MENU_PERMISSIONS') && (
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        onChangeView('SETTINGS_MENU_PERMISSIONS');
+                      }}
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-sm font-medium flex items-center justify-between transition-colors text-left ${
+                        currentView === 'SETTINGS_MENU_PERMISSIONS'
+                          ? 'bg-purple-700 text-white font-bold'
+                          : 'text-purple-900 bg-purple-50 hover:bg-purple-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <ShieldCheck className="w-4 h-4 text-purple-600" />
+                        <span>จัดการสิทธิ์เข้าถึงเมนู (👑 ผู้ดูแลหลัก)</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 bg-purple-200 text-purple-800 rounded">
+                        Admin
+                      </span>
+                    </button>
+                  )}
                 </div>
               )}
 
               {/* Status Alert Pills in Mobile Drawer */}
-              {criticalCount > 0 && userRole !== 'student' && (
+              {criticalCount > 0 && canAccess('CRITICAL_ALERT') && (
                 <div
                   onClick={() => {
                     onChangeView('CRITICAL_ALERT');
@@ -654,7 +710,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="max-w-md sm:max-w-2xl mx-auto flex items-center justify-around w-full">
           {isAuthenticated ? (
             <>
-              {userRole !== 'student' && (
+              {canAccess('DASHBOARD') && (
                 <button
                   id="mobile-nav-dashboard"
                   onClick={() => {
@@ -675,26 +731,28 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
-              <button
-                id="mobile-nav-lookup"
-                onClick={() => {
-                  onChangeView('LOOKUP');
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-2 sm:px-4 rounded-xl transition-all cursor-pointer relative ${
-                  currentView === 'LOOKUP'
-                    ? 'text-indigo-600 font-bold bg-indigo-50/90'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <Search className="w-5 h-5 sm:w-5 sm:h-5" />
-                <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">{userRole === 'student' ? 'คะแนนฉัน' : 'ค้นหา'}</span>
-                {currentView === 'LOOKUP' && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 mt-0.5" />
-                )}
-              </button>
+              {canAccess('LOOKUP') && (
+                <button
+                  id="mobile-nav-lookup"
+                  onClick={() => {
+                    onChangeView('LOOKUP');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-2 sm:px-4 rounded-xl transition-all cursor-pointer relative ${
+                    currentView === 'LOOKUP'
+                      ? 'text-indigo-600 font-bold bg-indigo-50/90'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Search className="w-5 h-5 sm:w-5 sm:h-5" />
+                  <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">{userRole === 'student' ? 'คะแนนฉัน' : 'ค้นหา'}</span>
+                  {currentView === 'LOOKUP' && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 mt-0.5" />
+                  )}
+                </button>
+              )}
 
-              {userRole !== 'student' && (
+              {canAccess('HONOUR') && (
                 <button
                   id="mobile-nav-honour"
                   onClick={() => {
@@ -715,7 +773,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
-              {userRole !== 'student' && (
+              {(canAccess('SETTINGS_BRANDING') ||
+                canAccess('SETTINGS_BEHAVIORS') ||
+                canAccess('SETTINGS_USERS') ||
+                canAccess('SETTINGS_DATABASE') ||
+                canAccess('SETTINGS_GRANTS') ||
+                canAccess('SETTINGS_MENU_PERMISSIONS')) && (
                 <button
                   id="mobile-nav-settings"
                   onClick={() => {
@@ -723,14 +786,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setMobileMenuOpen(false);
                   }}
                   className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-2 sm:px-4 rounded-xl transition-all cursor-pointer relative ${
-                    currentView === 'SETTINGS'
+                    currentView.startsWith('SETTINGS')
                       ? 'text-indigo-600 font-bold bg-indigo-50/90'
                       : 'text-slate-500 hover:text-indigo-600'
                   }`}
                 >
                   <Settings className="w-5 h-5 sm:w-5 sm:h-5" />
                   <span className="text-[10px] sm:text-xs mt-0.5 whitespace-nowrap">ตั้งค่า</span>
-                  {currentView === 'SETTINGS' && (
+                  {currentView.startsWith('SETTINGS') && (
                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 mt-0.5" />
                   )}
                 </button>

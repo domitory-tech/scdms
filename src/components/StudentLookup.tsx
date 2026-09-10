@@ -106,9 +106,9 @@ export const StudentLookup: React.FC<StudentLookupProps> = ({
   const cutoffs = useMemo(() => parseConductCutoffs(systemSettings), [systemSettings]);
   const userRole = currentUser?.role || 'student';
   const isStudentView = userRole === 'student' || studentGrant !== null;
-  const canDeductAndAdd = userRole === 'admin' || userRole === 'staff';
+  const canDeductAndAdd = userRole === 'admin' || userRole === 'staff' || userRole === 'teacher';
   const canGrantAccess = userRole === 'admin' || userRole === 'staff' || userRole === 'teacher';
-  const canManageLogs = userRole === 'admin' || userRole === 'staff';
+  const canManageLogs = userRole === 'admin' || userRole === 'staff' || userRole === 'teacher';
 
   const [searchId, setSearchId] = useState(initialStudentId || (studentGrant?.studentId || ''));
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(() => {
@@ -646,8 +646,8 @@ export const StudentLookup: React.FC<StudentLookupProps> = ({
               </div>
             </form>
 
-            {/* Quick Action Tools for Staff/Admin */}
-            {(userRole === 'admin' || userRole === 'staff') && onOpenAddStudent && (
+            {/* Quick Action Tools for Staff/Admin/Teacher */}
+            {(userRole === 'admin' || userRole === 'staff' || userRole === 'teacher') && onOpenAddStudent && (
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <button
                   type="button"
@@ -841,7 +841,7 @@ export const StudentLookup: React.FC<StudentLookupProps> = ({
                       currentAcademicYear={currentAcademicYear}
                       size="full"
                       fitMode={photoFitMode}
-                      canEditPhoto={userRole === 'admin' || userRole === 'staff' || userRole === 'advisor'}
+                      canEditPhoto={userRole === 'admin' || userRole === 'staff' || userRole === 'advisor' || userRole === 'teacher'}
                       onUpdatePhoto={onUpdateStudentPhoto}
                     />
                     {currentStudent?.photoUrl && (
@@ -981,7 +981,7 @@ export const StudentLookup: React.FC<StudentLookupProps> = ({
                     </button>
                   )}
 
-                  {onOpenEditStudent && (userRole === 'admin' || userRole === 'staff') && (
+                  {onOpenEditStudent && (userRole === 'admin' || userRole === 'staff' || userRole === 'teacher') && (
                     <button
                       onClick={() => onOpenEditStudent(currentStudent)}
                       className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-colors flex items-center justify-center cursor-pointer"
@@ -1297,7 +1297,7 @@ export const StudentLookup: React.FC<StudentLookupProps> = ({
                 )}
               </button>
 
-              {(userRole === 'admin' || userRole === 'staff') && onOpenAddStudent && (
+              {(userRole === 'admin' || userRole === 'staff' || userRole === 'teacher') && onOpenAddStudent && (
                 <button
                   type="button"
                   onClick={onOpenAddStudent}
@@ -1721,7 +1721,7 @@ export const StudentLookup: React.FC<StudentLookupProps> = ({
                                         </button>
                                       )}
 
-                                      {onOpenEditStudent && (userRole === 'admin' || userRole === 'staff') && (
+                                      {onOpenEditStudent && (userRole === 'admin' || userRole === 'staff' || userRole === 'teacher') && (
                                         <button
                                           type="button"
                                           onClick={() => onOpenEditStudent(student)}

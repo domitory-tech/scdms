@@ -78,6 +78,9 @@ import { StandardBehaviorsSettings } from './components/StandardBehaviorsSetting
 import { UserManagementSettings } from './components/UserManagementSettings';
 import { DatabaseSettings } from './components/DatabaseSettings';
 import { StudentGrantsSettings } from './components/StudentGrantsSettings';
+import { MenuPermissionsSettings } from './components/MenuPermissionsSettings';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
+import { canUserAccessMenu, canDeleteTargetUser, getUserRoleLevel, getRoleLevelByRoleName } from './utils/menuPermissions';
 import { ConductActionModal } from './components/ConductActionModal';
 import { HonourRollModal } from './components/HonourRollModal';
 import { ImportStudentsModal } from './components/ImportStudentsModal';
@@ -86,22 +89,49 @@ import { CriticalAlertView } from './components/CriticalAlertView';
 import { StudentPhotoManagerModal } from './components/StudentPhotoManagerModal';
 import { AddStudentModal } from './components/AddStudentModal';
 import { EditStudentModal } from './components/EditStudentModal';
+import { SettingsTabBar } from './components/SettingsTabBar';
 import { Loader2, ShieldAlert } from 'lucide-react';
 
 export default function App() {
   const [students, setStudents] = useState<Student[]>([]);
   const [conductLogs, setConductLogs] = useState<ConductLog[]>([]);
-  const [systemSettings, setSystemSettings] = useState<SystemSettings>(DEFAULT_SETTINGS);
-  const [users, setUsers] = useState<AppUser[]>([]);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() => {
+    try {
+      const cached = localStorage.getItem('conduct_cached_settings');
+      return cached ? JSON.parse(cached) : DEFAULT_SETTINGS;
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  });
+  const [users, setUsers] = useState<AppUser[]>(() => {
+    try {
+      const cached = localStorage.getItem('conduct_cached_users');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [accessGrants, setAccessGrants] = useState<StudentAccessGrant[]>([]);
   const [advisors, setAdvisors] = useState<HomeroomAdvisor[]>([]);
   const [standardBehaviors, setStandardBehaviors] = useState<StandardConductBehavior[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(() => {
+    try {
+      // Clear any legacy persistent login from localStorage so browser restart requires fresh login
+      localStorage.removeItem('conduct_auth_user');
+      const hasCachedSettings = !!localStorage.getItem('conduct_cached_settings');
+      const hasCachedUser = !!sessionStorage.getItem('conduct_auth_user');
+      return !hasCachedSettings && !hasCachedUser;
+    } catch {
+      return true;
+    }
+  });
+  const [passwordTargetUser, setPasswordTargetUser] = useState<AppUser | null>(null);
 
-  // Authentication & Access State
+  // Authentication & Access State (Session-only: terminates on browser close or logout)
   const [currentUser, setCurrentUser] = useState<AppUser | null>(() => {
     try {
-      const saved = localStorage.getItem('conduct_auth_user');
+      localStorage.removeItem('conduct_auth_user');
+      const saved = sessionStorage.getItem('conduct_auth_user');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -117,10 +147,11 @@ export default function App() {
     }
   });
 
-  // App Navigation state
+  // App Navigation state (derived from current active session)
   const [currentView, setCurrentView] = useState<AppView>(() => {
     try {
-      const savedUser = localStorage.getItem('conduct_auth_user');
+      localStorage.removeItem('conduct_auth_user');
+      const savedUser = sessionStorage.getItem('conduct_auth_user');
       if (savedUser) return 'DASHBOARD';
       const savedGrant = sessionStorage.getItem('conduct_student_grant');
       if (savedGrant) return 'LOOKUP';
@@ -132,9 +163,29 @@ export default function App() {
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
 
+  const getPermittedSettingsView = (): AppView => {
+    const candidates: AppView[] = [
+      'SETTINGS_BRANDING',
+      'SETTINGS_BEHAVIORS',
+      'SETTINGS_USERS',
+      'SETTINGS_DATABASE',
+      'SETTINGS_GRANTS',
+      'SETTINGS_MENU_PERMISSIONS'
+    ];
+    for (const v of candidates) {
+      if (canUserAccessMenu(v, currentUser, studentGrant, systemSettings?.menuPermissions)) {
+        return v;
+      }
+    }
+    return 'SETTINGS_BRANDING';
+  };
+
   const handleChangeView = (view: AppView) => {
     if (view === 'LOOKUP') {
       setSelectedStudentId('');
+    }
+    if (view === 'SETTINGS') {
+      view = getPermittedSettingsView();
     }
     setCurrentView(view);
   };
@@ -154,7 +205,7 @@ export default function App() {
   const [showAddStudentModal, setShowAddStudentModal] = useState<boolean>(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
-  // 1. Realtime Listeners & Initial Data Fetching
+  // 1. Realtime Listeners & Fast Parallel Initial Data Fetching
   useEffect(() => {
     let unsubscribeStudents: () => void = () => {};
     let unsubscribeLogs: () => void = () => {};
@@ -163,157 +214,168 @@ export default function App() {
     let unsubscribeAdvisors: () => void = () => {};
     let unsubscribeBehaviors: () => void = () => {};
 
-    async function init() {
-      try {
-        // Fetch system settings
-        const settings = await fetchSystemSettings();
-        setSystemSettings(settings);
+    // Fast safety timeout: dismiss loading screen in max 600ms so user never waits
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 600);
 
-        // Fetch users list initial
-        const loadedUsers = await fetchAppUsers();
-        setUsers(loadedUsers);
-
-        // Fetch access grants initial
-        const loadedGrants = await fetchStudentAccessGrants();
-        setAccessGrants(loadedGrants);
-
-        // Fetch homeroom advisors initial
-        const loadedAdvisors = await fetchHomeroomAdvisors();
-        setAdvisors(loadedAdvisors);
-
-        // Fetch standard conduct behaviors initial
-        const loadedBehaviors = await fetchStandardBehaviors();
-        setStandardBehaviors(loadedBehaviors);
-
-        // Realtime listener for students collection
-        unsubscribeStudents = onSnapshot(
-          collection(db, STUDENTS_COLLECTION),
-          (snapshot) => {
-            const loaded: Student[] = [];
-            const seenIds = new Set<string>();
-            snapshot.forEach((docSnap) => {
-              const studentData = docSnap.data() as Student;
-              if (studentData && studentData.id && !seenIds.has(studentData.id)) {
-                seenIds.add(studentData.id);
-                loaded.push(studentData);
-              }
-            });
-            setStudents(loaded);
-            setLoading(false);
-          },
-          (err) => {
-            console.warn('Firestore students error:', err);
-            setLoading(false);
-          }
-        );
-
-        // Realtime listener for conduct logs collection
-        unsubscribeLogs = onSnapshot(
-          collection(db, CONDUCT_LOGS_COLLECTION),
-          (snapshot) => {
-            const loadedLogs: ConductLog[] = [];
-            const seenIds = new Set<string>();
-            snapshot.forEach((docSnap) => {
-              const logData = docSnap.data() as ConductLog;
-              if (logData && logData.id && !seenIds.has(logData.id)) {
-                seenIds.add(logData.id);
-                loadedLogs.push(logData);
-              }
-            });
-            setConductLogs(loadedLogs);
-          },
-          (err) => {
-            console.warn('Firestore logs snapshot error:', err);
-          }
-        );
-
-        // Realtime listener for users collection
-        unsubscribeUsers = onSnapshot(
-          collection(db, USERS_COLLECTION),
-          (snapshot) => {
-            if (!snapshot.empty) {
-              const list: AppUser[] = [];
-              snapshot.forEach((docSnap) => {
-                list.push(docSnap.data() as AppUser);
-              });
-              setUsers(list);
+    try {
+      // 1.1 Realtime listener for students collection (starts immediately)
+      unsubscribeStudents = onSnapshot(
+        collection(db, STUDENTS_COLLECTION),
+        (snapshot) => {
+          const loaded: Student[] = [];
+          const seenIds = new Set<string>();
+          snapshot.forEach((docSnap) => {
+            const studentData = docSnap.data() as Student;
+            if (studentData && studentData.id && !seenIds.has(studentData.id)) {
+              seenIds.add(studentData.id);
+              loaded.push(studentData);
             }
-          },
-          (err) => {
-            console.warn('Firestore users snapshot error:', err);
-          }
-        );
+          });
+          setStudents(loaded);
+          setLoading(false);
+        },
+        (err) => {
+          console.warn('Firestore students error:', err);
+          setLoading(false);
+        }
+      );
 
-        // Realtime listener for student access grants
-        unsubscribeGrants = onSnapshot(
-          collection(db, ACCESS_GRANTS_COLLECTION),
-          (snapshot) => {
-            const list: StudentAccessGrant[] = [];
-            snapshot.forEach((docSnap) => {
-              list.push(docSnap.data() as StudentAccessGrant);
-            });
-            setAccessGrants(list.sort((a, b) => new Date(b.grantedAt).getTime() - new Date(a.grantedAt).getTime()));
-          },
-          (err) => {
-            console.warn('Firestore grants snapshot error:', err);
-          }
-        );
-
-        // Realtime listener for homeroom advisors
-        unsubscribeAdvisors = onSnapshot(
-          collection(db, ADVISORS_COLLECTION),
-          (snapshot) => {
-            const list: HomeroomAdvisor[] = [];
-            snapshot.forEach((docSnap) => {
-              list.push(docSnap.data() as HomeroomAdvisor);
-            });
-            setAdvisors(list);
-          },
-          (err) => {
-            console.warn('Firestore advisors snapshot error:', err);
-          }
-        );
-
-        // Realtime listener for standard conduct behaviors
-        unsubscribeBehaviors = onSnapshot(
-          collection(db, STANDARD_BEHAVIORS_COLLECTION),
-          (snapshot) => {
-            if (snapshot.empty) {
-              fetchStandardBehaviors().then(setStandardBehaviors);
-              return;
+      // 1.2 Realtime listener for conduct logs collection
+      unsubscribeLogs = onSnapshot(
+        collection(db, CONDUCT_LOGS_COLLECTION),
+        (snapshot) => {
+          const loadedLogs: ConductLog[] = [];
+          const seenIds = new Set<string>();
+          snapshot.forEach((docSnap) => {
+            const logData = docSnap.data() as ConductLog;
+            if (logData && logData.id && !seenIds.has(logData.id)) {
+              seenIds.add(logData.id);
+              loadedLogs.push(logData);
             }
-            const list: StandardConductBehavior[] = [];
-            const seenIds = new Set<string>();
+          });
+          setConductLogs(loadedLogs);
+        },
+        (err) => {
+          console.warn('Firestore logs snapshot error:', err);
+        }
+      );
+
+      // 1.3 Realtime listener for users collection
+      unsubscribeUsers = onSnapshot(
+        collection(db, USERS_COLLECTION),
+        (snapshot) => {
+          if (!snapshot.empty) {
+            const list: AppUser[] = [];
             snapshot.forEach((docSnap) => {
-              const b = docSnap.data() as StandardConductBehavior;
-              if (b && b.id && !seenIds.has(b.id)) {
-                seenIds.add(b.id);
-                list.push(b);
-              }
+              list.push(docSnap.data() as AppUser);
             });
-            list.sort((a, b) => {
-              if (a.type !== b.type) return a.type === 'DEDUCT' ? -1 : 1;
-              if (a.category !== b.category) return (a.category || '').localeCompare(b.category || '', 'th');
-              return (a.points || 0) - (b.points || 0);
-            });
-            setStandardBehaviors(list);
-          },
-          (err) => {
-            console.warn('Firestore behaviors snapshot error:', err);
+            setUsers(list);
+            try { localStorage.setItem('conduct_cached_users', JSON.stringify(list)); } catch {}
           }
-        );
-      } catch (e) {
-        console.error('Initialization error:', e);
-        setStudents(INITIAL_SAMPLE_STUDENTS);
-        setConductLogs(INITIAL_SAMPLE_LOGS);
-        setAdvisors([]);
+        },
+        (err) => {
+          console.warn('Firestore users snapshot error:', err);
+        }
+      );
+
+      // 1.4 Realtime listener for student access grants
+      unsubscribeGrants = onSnapshot(
+        collection(db, ACCESS_GRANTS_COLLECTION),
+        (snapshot) => {
+          const list: StudentAccessGrant[] = [];
+          snapshot.forEach((docSnap) => {
+            list.push(docSnap.data() as StudentAccessGrant);
+          });
+          setAccessGrants(list.sort((a, b) => new Date(b.grantedAt).getTime() - new Date(a.grantedAt).getTime()));
+        },
+        (err) => {
+          console.warn('Firestore grants snapshot error:', err);
+        }
+      );
+
+      // 1.5 Realtime listener for homeroom advisors
+      unsubscribeAdvisors = onSnapshot(
+        collection(db, ADVISORS_COLLECTION),
+        (snapshot) => {
+          const list: HomeroomAdvisor[] = [];
+          snapshot.forEach((docSnap) => {
+            list.push(docSnap.data() as HomeroomAdvisor);
+          });
+          setAdvisors(list);
+        },
+        (err) => {
+          console.warn('Firestore advisors snapshot error:', err);
+        }
+      );
+
+      // 1.6 Realtime listener for standard conduct behaviors
+      unsubscribeBehaviors = onSnapshot(
+        collection(db, STANDARD_BEHAVIORS_COLLECTION),
+        (snapshot) => {
+          if (snapshot.empty) {
+            fetchStandardBehaviors().then(setStandardBehaviors);
+            return;
+          }
+          const list: StandardConductBehavior[] = [];
+          const seenIds = new Set<string>();
+          snapshot.forEach((docSnap) => {
+            const b = docSnap.data() as StandardConductBehavior;
+            if (b && b.id && !seenIds.has(b.id)) {
+              seenIds.add(b.id);
+              list.push(b);
+            }
+          });
+          list.sort((a, b) => {
+            if (a.type !== b.type) return a.type === 'DEDUCT' ? -1 : 1;
+            if (a.category !== b.category) return (a.category || '').localeCompare(b.category || '', 'th');
+            return (a.points || 0) - (b.points || 0);
+          });
+          setStandardBehaviors(list);
+        },
+        (err) => {
+          console.warn('Firestore behaviors snapshot error:', err);
+        }
+      );
+
+      // 1.7 Parallel initial fetch for fast non-blocking hydration
+      Promise.allSettled([
+        fetchSystemSettings(),
+        fetchAppUsers(),
+        fetchStudentAccessGrants(),
+        fetchHomeroomAdvisors(),
+        fetchStandardBehaviors()
+      ]).then(([settingsRes, usersRes, grantsRes, advisorsRes, behaviorsRes]) => {
+        if (settingsRes.status === 'fulfilled' && settingsRes.value) {
+          setSystemSettings(settingsRes.value);
+          try { localStorage.setItem('conduct_cached_settings', JSON.stringify(settingsRes.value)); } catch {}
+        }
+        if (usersRes.status === 'fulfilled' && usersRes.value) {
+          setUsers(usersRes.value);
+          try { localStorage.setItem('conduct_cached_users', JSON.stringify(usersRes.value)); } catch {}
+        }
+        if (grantsRes.status === 'fulfilled' && grantsRes.value) {
+          setAccessGrants(grantsRes.value);
+        }
+        if (advisorsRes.status === 'fulfilled' && advisorsRes.value) {
+          setAdvisors(advisorsRes.value);
+        }
+        if (behaviorsRes.status === 'fulfilled' && behaviorsRes.value) {
+          setStandardBehaviors(behaviorsRes.value);
+        }
         setLoading(false);
-      }
+      });
+    } catch (e) {
+      console.error('Initialization error:', e);
+      setStudents(INITIAL_SAMPLE_STUDENTS);
+      setConductLogs(INITIAL_SAMPLE_LOGS);
+      setAdvisors([]);
+      setLoading(false);
     }
 
-    init();
-
     return () => {
+      clearTimeout(safetyTimer);
       unsubscribeStudents();
       unsubscribeLogs();
       unsubscribeUsers();
@@ -330,12 +392,13 @@ export default function App() {
     }`;
   }, [systemSettings]);
 
-  // Auth Handlers
+  // Auth Handlers (Strict session-based: login terminates upon browser close or logout)
   const handleStaffLogin = (user: AppUser) => {
     setCurrentUser(user);
     setStudentGrant(null);
-    localStorage.setItem('conduct_auth_user', JSON.stringify(user));
+    sessionStorage.setItem('conduct_auth_user', JSON.stringify(user));
     sessionStorage.removeItem('conduct_student_grant');
+    localStorage.removeItem('conduct_auth_user');
     setCurrentView('DASHBOARD');
     setShowLoginModal(false);
   };
@@ -344,6 +407,7 @@ export default function App() {
     setStudentGrant(grant);
     setCurrentUser(null);
     sessionStorage.setItem('conduct_student_grant', JSON.stringify(grant));
+    sessionStorage.removeItem('conduct_auth_user');
     localStorage.removeItem('conduct_auth_user');
     setSelectedStudentId(student?.id || grant.studentId);
     setCurrentView('LOOKUP');
@@ -353,8 +417,9 @@ export default function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     setStudentGrant(null);
-    localStorage.removeItem('conduct_auth_user');
+    sessionStorage.removeItem('conduct_auth_user');
     sessionStorage.removeItem('conduct_student_grant');
+    localStorage.removeItem('conduct_auth_user');
     setCurrentView('HOME');
   };
 
@@ -547,6 +612,16 @@ export default function App() {
 
   // User Management Handlers
   const handleSaveUser = async (user: AppUser) => {
+    if (currentUser) {
+      const isSelf = currentUser.id === user.id || currentUser.username?.toLowerCase() === user.username?.toLowerCase();
+      if (!isSelf) {
+        const curLevel = getUserRoleLevel(currentUser);
+        const targetRoleLevel = getRoleLevelByRoleName(user.role, !!user.isSuperAdmin);
+        if (curLevel <= targetRoleLevel) {
+          throw new Error('คุณไม่มีสิทธิ์กำหนดหรือแก้ไขผู้ใช้งานที่มีระดับสิทธิ์เท่ากันหรือสูงกว่าคุณ');
+        }
+      }
+    }
     await saveAppUser(user);
     setUsers(prev => {
       const idx = prev.findIndex(u => u.id === user.id);
@@ -560,6 +635,12 @@ export default function App() {
   };
 
   const handleDeleteUser = async (userId: string) => {
+    const target = users.find(u => u.id === userId);
+    if (currentUser && target) {
+      if (!canDeleteTargetUser(currentUser, target)) {
+        throw new Error('คุณไม่มีสิทธิ์ลบผู้ใช้งานนี้ (สามารถจัดการได้เฉพาะผู้มีระดับสิทธิ์ต่ำกว่าเท่านั้น)');
+      }
+    }
     await deleteAppUser(userId);
     setUsers(prev => prev.filter(u => u.id !== userId));
   };
@@ -827,6 +908,7 @@ export default function App() {
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
           onLogout={handleLogout}
+          onOpenChangePassword={() => setPasswordTargetUser(currentUser)}
         />
       )}
 
@@ -845,6 +927,7 @@ export default function App() {
           onOpenLoginModal={() => setShowLoginModal(true)}
           onToggleMobileSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
           isMobileSidebarOpen={mobileSidebarOpen}
+          onOpenChangePassword={() => setPasswordTargetUser(currentUser)}
         />
 
         {/* Main Content Area: Full width display on right side */}
@@ -873,6 +956,36 @@ export default function App() {
                 handleStaffLogin(adminUser);
               }}
             />
+          ) : !canUserAccessMenu(currentView, currentUser, studentGrant, systemSettings.menuPermissions) ? (
+            <div className="py-16 px-4 max-w-lg mx-auto text-center space-y-5 bg-white border border-rose-200 rounded-3xl p-6 sm:p-8 shadow-xs">
+              <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto border border-rose-100 shadow-xs">
+                <ShieldAlert className="w-8 h-8" />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-slate-900">
+                  สิทธิ์การเข้าถึงเมนูนี้ถูกจำกัด
+                </h2>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed mt-2">
+                  บัญชีของคุณไม่มีสิทธิ์เข้าถึงหน้านี้ตามการกำหนดค่าสิทธิ์ของระบบ กรุณาติดต่อผู้ดูแลระบบหลัก (Admin) เพื่อขอสิทธิ์เข้าถึง
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentView(currentUser?.role !== 'student' ? 'DASHBOARD' : 'LOOKUP')}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors cursor-pointer text-sm"
+                >
+                  กลับสู่หน้าหลักที่ได้รับอนุญาต
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentView('HOME')}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors cursor-pointer text-sm"
+                >
+                  หน้าแรกพอร์ทัล
+                </button>
+              </div>
+            </div>
           ) : currentView === 'HONOUR' ? (
             <HonourRollModal
               isPage={true}
@@ -1044,56 +1157,81 @@ export default function App() {
               onUpdateSettings={handleUpdateSettings}
               onGraduateStudents={handleGraduateStudents}
             />
-          ) : (currentView === 'SETTINGS' || currentView === 'SETTINGS_BRANDING') && currentUser ? (
-            <SchoolBrandingSettings
-              systemSettings={systemSettings}
-              currentUser={currentUser}
-              onClose={() => setCurrentView('DASHBOARD')}
-              onSaveSettings={handleUpdateSettings}
-              onUpdateSettings={handleUpdateSettings}
-            />
-          ) : currentView === 'SETTINGS_BEHAVIORS' && currentUser ? (
-            <StandardBehaviorsSettings
-              standardBehaviors={standardBehaviors}
-              currentUser={currentUser}
-              onClose={() => setCurrentView('DASHBOARD')}
-              onSaveStandardBehavior={handleSaveStandardBehavior}
-              onDeleteStandardBehavior={handleDeleteStandardBehavior}
-              onBatchSaveStandardBehaviors={handleBatchSaveStandardBehaviors}
-            />
-          ) : currentView === 'SETTINGS_USERS' && currentUser ? (
-            <UserManagementSettings
-              users={users}
-              currentUser={currentUser}
-              onClose={() => setCurrentView('DASHBOARD')}
-              onSaveUser={handleSaveUser}
-              onDeleteUser={handleDeleteUser}
-            />
-          ) : currentView === 'SETTINGS_DATABASE' && currentUser ? (
-            <DatabaseSettings
-              currentUser={currentUser}
-              students={students}
-              conductLogs={conductLogs}
-              systemSettings={systemSettings}
-              onClose={() => setCurrentView('DASHBOARD')}
-              onExportBackup={exportDatabaseBackup}
-              onImportBackup={importDatabaseBackup}
-              onSeedSampleData={handleSeedSampleData}
-              onClearSampleData={handleClearSampleData}
-              onClearAllStudentPhotos={handleClearAllStudentPhotos}
-              onClearIndividualStudentConduct={handleClearIndividualStudentConduct}
-              onClearAllConductData={handleClearAllConductData}
-              onAuditAndReconcileConduct={handleAuditAndReconcileConduct}
-              onResetToAdminOnly={handleResetDatabase}
-              onResetDatabase={handleResetDatabase}
-            />
-          ) : currentView === 'SETTINGS_GRANTS' && currentUser ? (
-            <StudentGrantsSettings
-              accessGrants={accessGrants}
-              currentUser={currentUser}
-              onClose={() => setCurrentView('DASHBOARD')}
-              onRevokeGrant={handleRevokeGrant}
-            />
+          ) : (currentView === 'SETTINGS' || currentView.startsWith('SETTINGS_')) && currentUser ? (
+            <div className="w-full space-y-4">
+              <SettingsTabBar
+                currentView={currentView}
+                currentUser={currentUser}
+                studentGrant={studentGrant}
+                systemSettings={systemSettings}
+                onChangeView={handleChangeView}
+              />
+              {currentView === 'SETTINGS_BEHAVIORS' ? (
+                <StandardBehaviorsSettings
+                  standardBehaviors={standardBehaviors}
+                  currentUser={currentUser}
+                  onClose={() => setCurrentView('DASHBOARD')}
+                  onSaveStandardBehavior={handleSaveStandardBehavior}
+                  onDeleteStandardBehavior={handleDeleteStandardBehavior}
+                  onBatchSaveStandardBehaviors={handleBatchSaveStandardBehaviors}
+                />
+              ) : currentView === 'SETTINGS_USERS' ? (
+                <UserManagementSettings
+                  users={users}
+                  currentUser={currentUser}
+                  onClose={() => setCurrentView('DASHBOARD')}
+                  onSaveUser={handleSaveUser}
+                  onDeleteUser={handleDeleteUser}
+                  onNavigateToMenuPermissions={() => setCurrentView('SETTINGS_MENU_PERMISSIONS')}
+                />
+              ) : currentView === 'SETTINGS_DATABASE' || (currentView === 'SETTINGS' && !canUserAccessMenu('SETTINGS_BRANDING', currentUser, studentGrant, systemSettings.menuPermissions) && canUserAccessMenu('SETTINGS_DATABASE', currentUser, studentGrant, systemSettings.menuPermissions)) ? (
+                <DatabaseSettings
+                  currentUser={currentUser}
+                  users={users}
+                  students={students}
+                  conductLogs={conductLogs}
+                  systemSettings={systemSettings}
+                  onClose={() => setCurrentView('DASHBOARD')}
+                  onExportBackup={exportDatabaseBackup}
+                  onImportBackup={importDatabaseBackup}
+                  onSeedSampleData={handleSeedSampleData}
+                  onClearSampleData={handleClearSampleData}
+                  onClearAllStudentPhotos={handleClearAllStudentPhotos}
+                  onClearIndividualStudentConduct={handleClearIndividualStudentConduct}
+                  onClearAllConductData={handleClearAllConductData}
+                  onAuditAndReconcileConduct={handleAuditAndReconcileConduct}
+                  onResetToAdminOnly={handleResetDatabase}
+                  onResetDatabase={handleResetDatabase}
+                />
+              ) : currentView === 'SETTINGS_MENU_PERMISSIONS' ? (
+                <MenuPermissionsSettings
+                  currentUser={currentUser}
+                  systemSettings={systemSettings}
+                  onClose={() => setCurrentView('DASHBOARD')}
+                  onSavePermissions={async (updatedPermissions) => {
+                    await handleUpdateSettings({
+                      ...systemSettings,
+                      menuPermissions: updatedPermissions
+                    });
+                  }}
+                />
+              ) : currentView === 'SETTINGS_GRANTS' ? (
+                <StudentGrantsSettings
+                  accessGrants={accessGrants}
+                  currentUser={currentUser}
+                  onClose={() => setCurrentView('DASHBOARD')}
+                  onRevokeGrant={handleRevokeGrant}
+                />
+              ) : (
+                <SchoolBrandingSettings
+                  systemSettings={systemSettings}
+                  currentUser={currentUser}
+                  onClose={() => setCurrentView('DASHBOARD')}
+                  onSaveSettings={handleUpdateSettings}
+                  onUpdateSettings={handleUpdateSettings}
+                />
+              )}
+            </div>
           ) : (currentView === 'DASHBOARD' || currentView === 'STUDENT_LIST') && currentUser ? (
             <Dashboard
               students={students}
@@ -1186,7 +1324,7 @@ export default function App() {
       )}
 
       {/* 3. Conduct Action Modal (Deduct / Add Score) */}
-      {conductActionTarget && currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff') && (
+      {conductActionTarget && currentUser && currentUser.role !== 'student' && (
         <ConductActionModal
           student={conductActionTarget.student}
           defaultType={conductActionTarget.defaultType}
@@ -1202,7 +1340,7 @@ export default function App() {
       )}
 
       {/* 4. Student Photo Manager Modal (Popup mode) */}
-      {showPhotoManagerModal && currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff') && (
+      {showPhotoManagerModal && currentUser && currentUser.role !== 'student' && (
         <StudentPhotoManagerModal
           isOpen={true}
           isPage={false}
@@ -1219,7 +1357,7 @@ export default function App() {
       )}
 
       {/* 5. Add Student Modal with Photo Compression */}
-      {showAddStudentModal && currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff') && (
+      {showAddStudentModal && currentUser && currentUser.role !== 'student' && (
         <AddStudentModal
           currentAcademicYear={systemSettings.currentAcademicYear}
           advisors={advisors}
@@ -1230,7 +1368,7 @@ export default function App() {
       )}
 
       {/* 6. Edit Student Modal with Photo Compression & Delete */}
-      {editingStudent && currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff') && (
+      {editingStudent && currentUser && currentUser.role !== 'student' && (
         <EditStudentModal
           student={editingStudent}
           currentAcademicYear={systemSettings.currentAcademicYear}
@@ -1239,6 +1377,29 @@ export default function App() {
           onClose={() => setEditingStudent(null)}
           onSave={handleUpdateStudent}
           onDelete={handleDeleteStudent}
+        />
+      )}
+
+      {/* 7. Change Password Modal (Restricted to Super Admin and Account Owner) */}
+      {passwordTargetUser && currentUser && (
+        <ChangePasswordModal
+          currentUser={currentUser}
+          targetUser={passwordTargetUser}
+          onClose={() => setPasswordTargetUser(null)}
+          onSavePassword={async (newPassword) => {
+            const updatedUser: AppUser = {
+              ...passwordTargetUser,
+              password: newPassword
+            };
+            await handleSaveUser(updatedUser);
+            if (currentUser.id === passwordTargetUser.id) {
+              const refreshed = { ...currentUser, password: newPassword };
+              setCurrentUser(refreshed);
+              sessionStorage.setItem('conduct_auth_user', JSON.stringify(refreshed));
+              localStorage.removeItem('conduct_auth_user');
+            }
+            setPasswordTargetUser(null);
+          }}
         />
       )}
     </div>

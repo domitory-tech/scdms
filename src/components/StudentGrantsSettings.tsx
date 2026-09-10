@@ -26,7 +26,7 @@ export const StudentGrantsSettings: React.FC<StudentGrantsSettingsProps> = ({
   const [grantSearchQuery, setGrantSearchQuery] = useState('');
   const [expandedGrantIds, setExpandedGrantIds] = useState<Set<string>>(new Set());
 
-  const isAdmin = currentUser.role === 'admin';
+  const isAdmin = currentUser.role === 'admin' || currentUser.role === 'staff' || currentUser.role === 'teacher';
 
   const filteredGrants = useMemo(() => {
     if (!grantSearchQuery.trim()) return accessGrants;

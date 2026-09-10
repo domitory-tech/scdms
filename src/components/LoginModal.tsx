@@ -304,19 +304,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 <span>{isSubmitting ? 'กำลังตรวจสอบสิทธิ์...' : 'เข้าสู่ระบบ'}</span>
               </button>
             </form>
-
-            {/* Role Info Box */}
-            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 text-[11px] text-slate-600 space-y-1.5">
-              <div className="font-bold text-slate-800 flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
-                <span>ระดับสิทธิ์การเข้าถึงข้อมูล:</span>
-              </div>
-              <ul className="list-disc list-inside space-y-0.5 text-slate-500">
-                <li><strong className="text-slate-700">ผู้ดูแลระบบ (Admin):</strong> จัดการได้ทุกอย่าง ทั้งข้อมูล ตั้งค่า ผู้ใช้งาน และฐานข้อมูล</li>
-                <li><strong className="text-slate-700">เจ้าหน้าที่ (Staff):</strong> หัก/เพิ่มคะแนน และอนุญาตให้นักเรียนดูคะแนนได้</li>
-                <li><strong className="text-slate-700">ครู (Teacher):</strong> ตรวจดูข้อมูล และอนุญาตให้นักเรียนดูคะแนนได้</li>
-              </ul>
-            </div>
           </div>
         )}
 
@@ -446,6 +433,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
           </div>
         )}
+
+        {/* Security Session Indicator */}
+        <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-center gap-2 text-[11px] text-slate-500 font-medium text-center">
+          <Clock className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+          <span>ระบบความปลอดภัย: การเข้าสู่ระบบจะสิ้นสุดลงทันทีเมื่อปิดหน้าต่างเบราว์เซอร์ หรือเมื่อกดออกจากระบบ</span>
+        </div>
       </div>
     </div>
   );

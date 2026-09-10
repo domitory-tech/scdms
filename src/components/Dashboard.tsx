@@ -96,7 +96,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const cutoffs = useMemo(() => parseConductCutoffs(systemSettings), [systemSettings]);
   const userRole = currentUser?.role || 'student';
-  const canDeductAndAdd = userRole === 'admin' || userRole === 'staff';
+  const canDeductAndAdd = userRole === 'admin' || userRole === 'staff' || userRole === 'teacher';
   const canGrantAccess = userRole === 'admin' || userRole === 'staff' || userRole === 'teacher';
 
   // Table filters & sorting
@@ -1251,7 +1251,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                       </button>
                                     )}
 
-                                    {onOpenEditStudent && (userRole === 'admin' || userRole === 'staff') && (
+                                    {onOpenEditStudent && (userRole === 'admin' || userRole === 'staff' || userRole === 'teacher') && (
                                       <button
                                         type="button"
                                         onClick={() => onOpenEditStudent(student)}

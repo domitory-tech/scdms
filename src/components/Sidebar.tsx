@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppUser, StudentAccessGrant, SystemSettings, AppView, Student } from '../types';
+import { canUserAccessMenu, isSuperAdmin } from '../utils/menuPermissions';
 import {
   LayoutDashboard,
   Search,
@@ -19,7 +20,9 @@ import {
   LogOut,
   AlertOctagon,
   X,
-  GraduationCap
+  GraduationCap,
+  Key,
+  ShieldCheck
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -35,6 +38,7 @@ interface SidebarProps {
   mobileOpen: boolean;
   onCloseMobile: () => void;
   onLogout: () => void;
+  onOpenChangePassword?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -49,7 +53,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   criticalCount,
   mobileOpen,
   onCloseMobile,
-  onLogout
+  onLogout,
+  onOpenChangePassword
 }) => {
   // Collapsible sub-menus: default to open as per standard admin dashboards
   const [studentMgmtOpen, setStudentMgmtOpen] = useState<boolean>(true);
@@ -64,6 +69,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isStudent = !currentUser && !!studentGrant;
   const userRole = currentUser?.role || (isStudent ? 'student' : 'guest');
   const isAdmin = currentUser?.role === 'admin';
+
+  // Helper to check dynamic menu permission
+  const canAccess = (view: AppView) =>
+    canUserAccessMenu(view, currentUser, studentGrant, systemSettings?.menuPermissions);
+
+  // Check if groups have any visible child items
+  const hasStudentMgmtAccess =
+    canAccess('STUDENT_LIST') ||
+    canAccess('IMPORT') ||
+    canAccess('PHOTOS') ||
+    canAccess('YEAR_CYCLE');
+
+  const hasSettingsMgmtAccess =
+    canAccess('SETTINGS_BRANDING') ||
+    canAccess('SETTINGS_BEHAVIORS') ||
+    canAccess('SETTINGS_USERS') ||
+    canAccess('SETTINGS_DATABASE') ||
+    canAccess('SETTINGS_GRANTS') ||
+    canAccess('SETTINGS_MENU_PERMISSIONS');
 
   // Helper to handle navigation click (closes mobile drawer automatically)
   const handleNav = (view: AppView) => {
@@ -131,30 +155,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* 2. NAVIGATION MENU LIST */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5 text-sm" aria-label="เมนูหลักด้านซ้าย">
         {/* Item 0: หน้าแรก (Home Portal) */}
-        <button
-          type="button"
-          onClick={() => handleNav('HOME')}
-          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition-all cursor-pointer text-left ${
-            currentView === 'HOME'
-              ? 'bg-indigo-600 text-white shadow-sm'
-              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <div className="flex items-center gap-2.5">
-            <School className="w-4 h-4 shrink-0" />
-            <span>หน้าแรก</span>
-          </div>
-          <span
-            className={`text-[10px] font-medium px-2 py-0.5 rounded-md ${
-              currentView === 'HOME' ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-500'
+        {canAccess('HOME') && (
+          <button
+            type="button"
+            onClick={() => handleNav('HOME')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition-all cursor-pointer text-left ${
+              currentView === 'HOME'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
             }`}
           >
-            พอร์ทัล
-          </span>
-        </button>
+            <div className="flex items-center gap-2.5">
+              <School className="w-4 h-4 shrink-0" />
+              <span>หน้าแรก</span>
+            </div>
+            <span
+              className={`text-[10px] font-medium px-2 py-0.5 rounded-md ${
+                currentView === 'HOME' ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-500'
+              }`}
+            >
+              พอร์ทัล
+            </span>
+          </button>
+        )}
 
         {/* Item 1: ภาพรวมคะแนน */}
-        {userRole !== 'student' && (
+        {canAccess('DASHBOARD') && (
           <button
             type="button"
             onClick={() => handleNav('DASHBOARD')}
@@ -179,28 +205,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
 
         {/* Item 2: ค้นหานักเรียน */}
-        <button
-          type="button"
-          onClick={() => handleNav('LOOKUP')}
-          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition-all cursor-pointer text-left ${
-            currentView === 'LOOKUP'
-              ? 'bg-indigo-600 text-white shadow-sm'
-              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <div className="flex items-center gap-2.5">
-            <Search className="w-4 h-4 shrink-0" />
-            <span>ค้นหานักเรียน</span>
-          </div>
-          {userRole === 'student' && (
-            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
-              ข้อมูลตนเอง
-            </span>
-          )}
-        </button>
+        {canAccess('LOOKUP') && (
+          <button
+            type="button"
+            onClick={() => handleNav('LOOKUP')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition-all cursor-pointer text-left ${
+              currentView === 'LOOKUP'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Search className="w-4 h-4 shrink-0" />
+              <span>ค้นหานักเรียน</span>
+            </div>
+            {userRole === 'student' && (
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                ข้อมูลตนเอง
+              </span>
+            )}
+          </button>
+        )}
 
         {/* Item 3: ครูที่ปรึกษา */}
-        {userRole !== 'student' && (
+        {canAccess('ADVISORS') && (
           <button
             type="button"
             onClick={() => handleNav('ADVISORS')}
@@ -218,32 +246,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
 
         {/* Item 4: ทำเนียบ 100+ */}
-        <button
-          type="button"
-          onClick={() => handleNav('HONOUR')}
-          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition-all cursor-pointer text-left ${
-            currentView === 'HONOUR'
-              ? 'bg-violet-700 text-white shadow-sm'
-              : 'text-violet-900 hover:bg-violet-50'
-          }`}
-        >
-          <div className="flex items-center gap-2.5">
-            <Award className={`w-4 h-4 shrink-0 ${currentView === 'HONOUR' ? 'text-amber-300' : 'text-amber-500'}`} />
-            <span>ทำเนียบ 100+</span>
-          </div>
-          <span
-            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-              currentView === 'HONOUR' ? 'bg-violet-800 text-amber-300' : 'bg-amber-100 text-amber-800'
+        {canAccess('HONOUR') && (
+          <button
+            type="button"
+            onClick={() => handleNav('HONOUR')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition-all cursor-pointer text-left ${
+              currentView === 'HONOUR'
+                ? 'bg-violet-700 text-white shadow-sm'
+                : 'text-violet-900 hover:bg-violet-50'
             }`}
           >
-            100+
-          </span>
-        </button>
+            <div className="flex items-center gap-2.5">
+              <Award className={`w-4 h-4 shrink-0 ${currentView === 'HONOUR' ? 'text-amber-300' : 'text-amber-500'}`} />
+              <span>ทำเนียบ 100+</span>
+            </div>
+            <span
+              className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                currentView === 'HONOUR' ? 'bg-violet-800 text-amber-300' : 'bg-amber-100 text-amber-800'
+              }`}
+            >
+              100+
+            </span>
+          </button>
+        )}
 
         {/* ========================================================================= */}
         {/* GROUP 1: จัดการนักเรียน (SUB-MENU) */}
         {/* ========================================================================= */}
-        {userRole !== 'student' && (
+        {hasStudentMgmtAccess && (
           <div className="pt-2">
             {/* Header / Toggle Button */}
             <button
@@ -266,106 +296,114 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {studentMgmtOpen && (
               <div className="pl-2 pr-1 space-y-1 mt-1 border-l-2 border-slate-100 ml-3">
                 {/* 1.1 จัดการรายชื่อนักเรียน */}
-                <button
-                  type="button"
-                  onClick={() => handleNav('STUDENT_LIST')}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
-                    isStudentSubActive('STUDENT_LIST')
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
-                    <span className="truncate">จัดการรายชื่อนักเรียน</span>
-                  </div>
-                  {studentsCount > 0 && (
-                    <span
-                      className={`text-[10px] font-mono px-1.5 py-0.2 rounded shrink-0 ${
-                        isStudentSubActive('STUDENT_LIST')
-                          ? 'bg-indigo-700 text-white'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {studentsCount}
-                    </span>
-                  )}
-                </button>
+                {canAccess('STUDENT_LIST') && (
+                  <button
+                    type="button"
+                    onClick={() => handleNav('STUDENT_LIST')}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
+                      isStudentSubActive('STUDENT_LIST')
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                      <span className="truncate">จัดการรายชื่อนักเรียน</span>
+                    </div>
+                    {studentsCount > 0 && (
+                      <span
+                        className={`text-[10px] font-mono px-1.5 py-0.2 rounded shrink-0 ${
+                          isStudentSubActive('STUDENT_LIST')
+                            ? 'bg-indigo-700 text-white'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {studentsCount}
+                      </span>
+                    )}
+                  </button>
+                )}
 
                 {/* 1.2 นำเข้านักเรียน CSV */}
-                <button
-                  type="button"
-                  onClick={() => handleNav('IMPORT')}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
-                    isStudentSubActive('IMPORT')
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <Upload className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">นำเข้านักเรียน CSV</span>
-                  </div>
-                  <span
-                    className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded shrink-0 ${
+                {canAccess('IMPORT') && (
+                  <button
+                    type="button"
+                    onClick={() => handleNav('IMPORT')}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
                       isStudentSubActive('IMPORT')
-                        ? 'bg-indigo-700 text-white'
-                        : 'bg-emerald-100 text-emerald-700'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
-                    CSV
-                  </span>
-                </button>
+                    <div className="flex items-center gap-2 truncate">
+                      <Upload className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">นำเข้านักเรียน CSV</span>
+                    </div>
+                    <span
+                      className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded shrink-0 ${
+                        isStudentSubActive('IMPORT')
+                          ? 'bg-indigo-700 text-white'
+                          : 'bg-emerald-100 text-emerald-700'
+                      }`}
+                    >
+                      CSV
+                    </span>
+                  </button>
+                )}
 
                 {/* 1.3 นำเข้ารูปนักเรียน */}
-                <button
-                  type="button"
-                  onClick={() => handleNav('PHOTOS')}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
-                    isStudentSubActive('PHOTOS')
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <Camera className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">นำเข้ารูปนักเรียน</span>
-                  </div>
-                  <span
-                    className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded shrink-0 ${
+                {canAccess('PHOTOS') && (
+                  <button
+                    type="button"
+                    onClick={() => handleNav('PHOTOS')}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
                       isStudentSubActive('PHOTOS')
-                        ? 'bg-indigo-700 text-white'
-                        : 'bg-indigo-100 text-indigo-700'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
-                    .JPG
-                  </span>
-                </button>
+                    <div className="flex items-center gap-2 truncate">
+                      <Camera className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">นำเข้ารูปนักเรียน</span>
+                    </div>
+                    <span
+                      className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded shrink-0 ${
+                        isStudentSubActive('PHOTOS')
+                          ? 'bg-indigo-700 text-white'
+                          : 'bg-indigo-100 text-indigo-700'
+                      }`}
+                    >
+                      .JPG
+                    </span>
+                  </button>
+                )}
 
                 {/* 1.4 จัดการรอบ 3 ปี */}
-                <button
-                  type="button"
-                  onClick={() => handleNav('YEAR_CYCLE')}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
-                    isStudentSubActive('YEAR_CYCLE')
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <RefreshCw className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">จัดการรอบ 3 ปี</span>
-                  </div>
-                  <span
-                    className={`text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
+                {canAccess('YEAR_CYCLE') && (
+                  <button
+                    type="button"
+                    onClick={() => handleNav('YEAR_CYCLE')}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
                       isStudentSubActive('YEAR_CYCLE')
-                        ? 'bg-indigo-700 text-white'
-                        : 'bg-amber-100 text-amber-800'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
-                    ม.3/ม.6
-                  </span>
-                </button>
+                    <div className="flex items-center gap-2 truncate">
+                      <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">จัดการรอบ 3 ปี</span>
+                    </div>
+                    <span
+                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
+                        isStudentSubActive('YEAR_CYCLE')
+                          ? 'bg-indigo-700 text-white'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      ม.3/ม.6
+                    </span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -374,7 +412,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* ========================================================================= */}
         {/* GROUP 2: ตั้งค่าระบบ (SUB-MENU) */}
         {/* ========================================================================= */}
-        {userRole !== 'student' && (
+        {hasSettingsMgmtAccess && (
           <div className="pt-2">
             {/* Header / Toggle Button */}
             <button
@@ -397,133 +435,170 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {settingsMgmtOpen && (
               <div className="pl-2 pr-1 space-y-1 mt-1 border-l-2 border-slate-100 ml-3">
                 {/* 2.1 ข้อมูลโรงเรียนและระบบ */}
-                <button
-                  type="button"
-                  onClick={() => handleNav('SETTINGS_BRANDING')}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
-                    isSettingsSubActive('SETTINGS_BRANDING') || currentView === 'SETTINGS'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <School className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">ข้อมูลโรงเรียนและระบบ</span>
-                  </div>
-                </button>
-
-                {/* 2.2 หัวข้อพฤติกรรมมาตราฐาน */}
-                <button
-                  type="button"
-                  onClick={() => handleNav('SETTINGS_BEHAVIORS')}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
-                    isSettingsSubActive('SETTINGS_BEHAVIORS')
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <ListChecks className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">หัวข้อพฤติกรรมมาตราฐาน</span>
-                  </div>
-                  {standardBehaviorsCount > 0 && (
-                    <span
-                      className={`text-[10px] font-mono px-1.5 py-0.2 rounded shrink-0 ${
-                        isSettingsSubActive('SETTINGS_BEHAVIORS')
-                          ? 'bg-indigo-700 text-white'
-                          : 'bg-indigo-100 text-indigo-700'
-                      }`}
-                    >
-                      {standardBehaviorsCount}
-                    </span>
-                  )}
-                </button>
-
-                {/* 2.3 จัดการผู้ใช้งานระบบ */}
-                <button
-                  type="button"
-                  onClick={() => handleNav('SETTINGS_USERS')}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
-                    isSettingsSubActive('SETTINGS_USERS')
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <Shield className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">จัดการผู้ใช้งานระบบ</span>
-                  </div>
-                  {isAdmin && (
-                    <span
-                      className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded shrink-0 ${
-                        isSettingsSubActive('SETTINGS_USERS')
-                          ? 'bg-indigo-700 text-white'
-                          : 'bg-purple-100 text-purple-700'
-                      }`}
-                    >
-                      Admin
-                    </span>
-                  )}
-                </button>
-
-                {/* 2.4 ฐานข้อมูล & สำรอง */}
-                <button
-                  type="button"
-                  onClick={() => handleNav('SETTINGS_DATABASE')}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
-                    isSettingsSubActive('SETTINGS_DATABASE')
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <Database className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">ฐานข้อมูล & สำรอง</span>
-                  </div>
-                  <span
-                    className={`text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
-                      isSettingsSubActive('SETTINGS_DATABASE')
-                        ? 'bg-indigo-700 text-white'
-                        : 'bg-slate-100 text-slate-500'
+                {canAccess('SETTINGS_BRANDING') && (
+                  <button
+                    type="button"
+                    onClick={() => handleNav('SETTINGS_BRANDING')}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
+                      isSettingsSubActive('SETTINGS_BRANDING') || currentView === 'SETTINGS'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
-                    Cloud
-                  </span>
-                </button>
+                    <div className="flex items-center gap-2 truncate">
+                      <School className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">ข้อมูลโรงเรียนและระบบ</span>
+                    </div>
+                  </button>
+                )}
 
-                {/* 2.5 ประวัติสิทธิ์นักเรียน */}
-                <button
-                  type="button"
-                  onClick={() => handleNav('SETTINGS_GRANTS')}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
-                    isSettingsSubActive('SETTINGS_GRANTS')
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <History className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">ประวัติสิทธิ์นักเรียน</span>
-                  </div>
-                  {accessGrantsCount > 0 && (
+                {/* 2.2 หัวข้อพฤติกรรมมาตราฐาน */}
+                {canAccess('SETTINGS_BEHAVIORS') && (
+                  <button
+                    type="button"
+                    onClick={() => handleNav('SETTINGS_BEHAVIORS')}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
+                      isSettingsSubActive('SETTINGS_BEHAVIORS')
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <ListChecks className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">หัวข้อพฤติกรรมมาตราฐาน</span>
+                    </div>
+                    {standardBehaviorsCount > 0 && (
+                      <span
+                        className={`text-[10px] font-mono px-1.5 py-0.2 rounded shrink-0 ${
+                          isSettingsSubActive('SETTINGS_BEHAVIORS')
+                            ? 'bg-indigo-700 text-white'
+                            : 'bg-indigo-100 text-indigo-700'
+                        }`}
+                      >
+                        {standardBehaviorsCount}
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {/* 2.3 จัดการผู้ใช้งานระบบ */}
+                {canAccess('SETTINGS_USERS') && (
+                  <button
+                    type="button"
+                    onClick={() => handleNav('SETTINGS_USERS')}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
+                      isSettingsSubActive('SETTINGS_USERS')
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Shield className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">จัดการผู้ใช้งานระบบ</span>
+                    </div>
+                    {isAdmin && (
+                      <span
+                        className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded shrink-0 ${
+                          isSettingsSubActive('SETTINGS_USERS')
+                            ? 'bg-indigo-700 text-white'
+                            : 'bg-purple-100 text-purple-700'
+                        }`}
+                      >
+                        Admin
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {/* 2.4 ฐานข้อมูล & สำรอง */}
+                {canAccess('SETTINGS_DATABASE') && (
+                  <button
+                    type="button"
+                    onClick={() => handleNav('SETTINGS_DATABASE')}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
+                      isSettingsSubActive('SETTINGS_DATABASE')
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Database className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">ฐานข้อมูล & สำรอง</span>
+                    </div>
                     <span
-                      className={`text-[10px] font-mono px-1.5 py-0.2 rounded shrink-0 ${
-                        isSettingsSubActive('SETTINGS_GRANTS')
+                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
+                        isSettingsSubActive('SETTINGS_DATABASE')
                           ? 'bg-indigo-700 text-white'
                           : 'bg-slate-100 text-slate-500'
                       }`}
                     >
-                      {accessGrantsCount}
+                      Cloud
                     </span>
-                  )}
-                </button>
+                  </button>
+                )}
+
+                {/* 2.5 ประวัติสิทธิ์นักเรียน */}
+                {canAccess('SETTINGS_GRANTS') && (
+                  <button
+                    type="button"
+                    onClick={() => handleNav('SETTINGS_GRANTS')}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
+                      isSettingsSubActive('SETTINGS_GRANTS')
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <History className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">ประวัติสิทธิ์นักเรียน</span>
+                    </div>
+                    {accessGrantsCount > 0 && (
+                      <span
+                        className={`text-[10px] font-mono px-1.5 py-0.2 rounded shrink-0 ${
+                          isSettingsSubActive('SETTINGS_GRANTS')
+                            ? 'bg-indigo-700 text-white'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {accessGrantsCount}
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {/* 2.6 จัดการสิทธิ์เข้าถึงเมนู (เฉพาะผู้ดูแลหลักเท่านั้น) */}
+                {canAccess('SETTINGS_MENU_PERMISSIONS') && (
+                  <button
+                    type="button"
+                    onClick={() => handleNav('SETTINGS_MENU_PERMISSIONS')}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-left ${
+                      isSettingsSubActive('SETTINGS_MENU_PERMISSIONS')
+                        ? 'bg-purple-700 text-white shadow-xs'
+                        : 'text-purple-900 bg-purple-50/70 hover:bg-purple-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <ShieldCheck className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                      <span className="truncate">จัดการสิทธิ์เข้าถึงเมนู</span>
+                    </div>
+                    <span
+                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
+                        isSettingsSubActive('SETTINGS_MENU_PERMISSIONS')
+                          ? 'bg-purple-900 text-white'
+                          : 'bg-purple-200 text-purple-800'
+                      }`}
+                    >
+                      👑 ผู้ดูแลหลัก
+                    </span>
+                  </button>
+                )}
               </div>
             )}
           </div>
         )}
 
         {/* CRITICAL ALERT PILL (If any students <= 50) */}
-        {criticalCount > 0 && userRole !== 'student' && (
+        {criticalCount > 0 && canAccess('CRITICAL_ALERT') && (
           <div className="pt-2">
             <button
               type="button"
@@ -572,7 +647,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {currentUser ? currentUser.name : studentGrant ? studentGrant.studentName : 'ผู้เยี่ยมชม'}
               </span>
               <span className="text-[10px] text-slate-500 font-medium truncate">
-                {currentUser?.role === 'admin'
+                {isSuperAdmin(currentUser)
+                  ? '👑 ผู้ดูแลหลัก (Super Admin)'
+                  : currentUser?.role === 'admin'
                   ? 'ผู้ดูแลระบบ (Admin)'
                   : currentUser?.role === 'staff'
                   ? 'ฝ่ายปกครอง (Staff)'
@@ -585,15 +662,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onLogout}
-            title="ออกจากระบบ"
-            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
-            aria-label="ออกจากระบบ"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            {currentUser && onOpenChangePassword && (
+              <button
+                type="button"
+                onClick={onOpenChangePassword}
+                title="เปลี่ยนรหัสผ่านของฉัน"
+                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                aria-label="เปลี่ยนรหัสผ่านของฉัน"
+              >
+                <Key className="w-4 h-4" />
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onLogout}
+              title="ออกจากระบบ"
+              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+              aria-label="ออกจากระบบ"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

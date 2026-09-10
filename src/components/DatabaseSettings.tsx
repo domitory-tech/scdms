@@ -14,6 +14,7 @@ import {
 
 interface DatabaseSettingsProps {
   currentUser: AppUser;
+  users?: AppUser[];
   students: Student[];
   conductLogs: ConductLog[];
   systemSettings?: SystemSettings;
@@ -33,6 +34,7 @@ interface DatabaseSettingsProps {
 
 export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({
   currentUser,
+  users = [],
   students,
   conductLogs,
   systemSettings,
@@ -436,6 +438,8 @@ export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({
         targetName={confirmAction.targetName}
         dangerLevel={confirmAction.dangerLevel}
         confirmButtonText={confirmAction.confirmButtonText}
+        currentUser={currentUser}
+        users={users}
         onClose={() => setConfirmAction(prev => ({ ...prev, isOpen: false }))}
         onConfirm={confirmAction.onConfirm}
       />
